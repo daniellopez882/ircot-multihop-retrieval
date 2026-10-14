@@ -530,27 +530,34 @@ def latency_stage(
     trained: TrainOutcome,
     cfg: BenchConfig,
 ) -> dict[str, dict[str, object]]:
-    """Wall time per question with cold caches: retrieval, reasoning and answer reading."""
+    """Wall time per question with cold caches: retrieval, reasoning and answer reading.
+
+    Every configuration is timed on a question before the next question starts, so a change in
+    background load during the pass lands on all configurations alike instead of on whichever
+    configuration happened to be running.
+    """
     questions = ws.questions[: cfg.latency_n]
     dense = ws.retrievers["dense"]
     assert isinstance(dense, Dense)
-    out: dict[str, dict[str, object]] = {}
-    for spec in specs:
-        times: list[float] = []
-        for q in questions:
+    times: dict[str, list[float]] = {spec.name: [] for spec in specs}
+    for q in questions:
+        for spec in specs:
             dense.forget_queries()
             cache = ReaderCache(models.reader, ws.corpus)
             loop = build_loop(spec, ws, cache, trained.policy, trained.controller, cfg)
             t0 = time.perf_counter()
             result = loop.run(q)
             best_answer(cache, q.text, result.ranking[: cfg.answer_depth])
-            times.append((time.perf_counter() - t0) * 1000.0)
-        out[spec.name] = {
-            "n": len(times),
-            "p50_ms": _percentile(times, 50),
-            "p95_ms": _percentile(times, 95),
+            times[spec.name].append((time.perf_counter() - t0) * 1000.0)
+    return {
+        name: {
+            "n": len(values),
+            "p50_ms": _percentile(values, 50),
+            "p95_ms": _percentile(values, 95),
+            "order": "configurations interleaved per question",
         }
-    return out
+        for name, values in times.items()
+    }
 
 
 def run_dataset(
