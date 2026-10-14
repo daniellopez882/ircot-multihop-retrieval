@@ -103,3 +103,24 @@ def test_hybrid_rejects_bad_weights() -> None:
     enc = HashingEncoder(dim=8)
     with pytest.raises(ValueError, match="alpha"):
         Hybrid(BM25(DOCS), Dense(enc.encode_passages(DOCS), enc), alpha=1.5)
+
+
+class CountingEncoder(HashingEncoder):
+    def __init__(self) -> None:
+        super().__init__(dim=16)
+        self.calls = 0
+
+    def encode_queries(self, texts):  # type: ignore[no-untyped-def]
+        self.calls += 1
+        return super().encode_queries(texts)
+
+
+def test_dense_memoises_query_embeddings_until_told_to_forget() -> None:
+    enc = CountingEncoder()
+    dense = Dense(enc.encode_passages(DOCS), enc)
+    first = dense.scores("Steve Hillage")
+    np.testing.assert_array_equal(dense.scores("Steve Hillage"), first)
+    assert enc.calls == 1
+    dense.forget_queries()
+    dense.scores("Steve Hillage")
+    assert enc.calls == 2

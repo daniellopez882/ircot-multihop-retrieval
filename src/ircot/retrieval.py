@@ -100,7 +100,12 @@ class BM25:
 
 
 class Dense:
-    """Exact inner-product search over L2-normalised passage embeddings."""
+    """Exact inner-product search over L2-normalised passage embeddings.
+
+    Query embeddings are memoised by query text: every configuration starts from the same
+    question, and the fixed-hop loops repeat each other's first hops. ``forget_queries`` empties
+    the memo so a latency measurement pays for every encoding.
+    """
 
     name = "dense"
 
@@ -109,10 +114,16 @@ class Dense:
             raise ValueError("embeddings must be a [passages, dim] matrix")
         self.embeddings = embeddings.astype(np.float32, copy=False)
         self.encoder = encoder
+        self._queries: dict[str, np.ndarray] = {}
 
     def scores(self, query: str) -> np.ndarray:
-        q = self.encoder.encode_queries([query])[0]
+        q = self._queries.get(query)
+        if q is None:
+            q = self._queries[query] = self.encoder.encode_queries([query])[0]
         return (self.embeddings @ q).astype(np.float64)
+
+    def forget_queries(self) -> None:
+        self._queries.clear()
 
 
 class Hybrid:

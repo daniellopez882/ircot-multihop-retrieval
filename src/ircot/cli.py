@@ -144,7 +144,10 @@ def ask(
     cfg = BenchConfig(datasets=(dataset,), n_eval=n, n_train=0, seed=seed)
     models = load_models("models")
     sample, _ = split_sample(load_questions(dataset), n, 0, seed)
-    q = next((x for x in sample if x.qid == question_id), sample[0])
+    found = [x for x in sample if x.qid == question_id] if question_id else sample[:1]
+    if not found:
+        raise typer.BadParameter(f"{question_id} is not in the {n}-question {dataset} sample")
+    q = found[0]
     ws = Workspace.build(sample, models, cfg, _say)
     policy, controller, spec_name = POLICIES["append"], None, "loop3-extractive"
     if results is not None:

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import hashlib
-import os
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Protocol
 
 import numpy as np
+
+from ircot.sessions import cpu_session
 
 BGE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
 
@@ -39,7 +40,6 @@ class OnnxBgeEncoder:
         threads: int | None = None,
         name: str = "bge-small-en-v1.5",
     ) -> None:
-        import onnxruntime as ort
         from tokenizers import Tokenizer
 
         self.name = name
@@ -47,12 +47,7 @@ class OnnxBgeEncoder:
         self.tokenizer = Tokenizer.from_file(str(tokenizer_path))
         self.tokenizer.enable_truncation(max_length)
         self.tokenizer.no_padding()
-        opts = ort.SessionOptions()
-        opts.intra_op_num_threads = threads or os.cpu_count() or 1
-        opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-        self.session = ort.InferenceSession(
-            str(model_path), opts, providers=["CPUExecutionProvider"]
-        )
+        self.session = cpu_session(model_path, threads)
 
     def _encode(self, texts: Sequence[str]) -> np.ndarray:
         encodings = self.tokenizer.encode_batch(list(texts))

@@ -79,6 +79,7 @@ class BenchConfig:
     controller_l2: float = 1.0
     controller_threshold: float = 0.5
     bootstrap_resamples: int = 2000
+    ci_level: float = 0.95
     permutations: int = 10000
 
 
@@ -175,6 +176,7 @@ def load_models(profile: str) -> Models:
     onnx_path = sources.reader_onnx_path()
     if not onnx_path.exists():
         raise sources.MissingAssetError(f"{onnx_path} is missing; run `ircot fetch`")
+    onnx_sha = sources.sha256_file(onnx_path)
     counter = Tokenizer.from_file(str(bge["tokenizer.json"]))
     counter.no_truncation()
 
@@ -193,7 +195,7 @@ def load_models(profile: str) -> Models:
             "repo": sources.MINILM_SQUAD2.repo,
             "revision": sources.MINILM_SQUAD2.revision,
             "weights_sha256": sources.MINILM_SQUAD2.pin("model.safetensors").sha256,
-            "onnx_sha256": sources.sha256_file(onnx_path),
+            "onnx_sha256": onnx_sha,
             "license": sources.MINILM_SQUAD2.license,
             "export": "ircot.onnx_bert (graph built from safetensors, opset 17)",
         },
@@ -201,7 +203,10 @@ def load_models(profile: str) -> Models:
     }
     return Models(
         OnnxBgeEncoder(bge["onnx/model.onnx"], bge["tokenizer.json"]),
-        OnnxSquadReader(onnx_path, reader_files["vocab.txt"]),
+        # The reader's name carries its graph hash, so cached spans never outlive a re-export.
+        OnnxSquadReader(
+            onnx_path, reader_files["vocab.txt"], name=f"minilm-squad2-{onnx_sha[:12]}"
+        ),
         count_tokens,
         info,
         cache_dir(),
@@ -460,7 +465,9 @@ def summarise(
     metrics: dict[str, object] = {}
     for m in (*METRICS, "recall@pool"):
         values = [float(r[m]) for r in rows]  # type: ignore[arg-type]
-        ci = bootstrap_ci(values, resamples=cfg.bootstrap_resamples, seed=cfg.seed)
+        ci = bootstrap_ci(
+            values, resamples=cfg.bootstrap_resamples, level=cfg.ci_level, seed=cfg.seed
+        )
         metrics[m] = {
             "mean": round(ci.mean, 4),
             "ci_low": round(ci.low, 4),
@@ -480,7 +487,9 @@ def summarise(
         for m in METRICS:
             a = np.array([float(r[m]) for r in rows])  # type: ignore[arg-type]
             b = np.array([float(r[m]) for r in reference])  # type: ignore[arg-type]
-            diff = bootstrap_ci(a - b, resamples=cfg.bootstrap_resamples, seed=cfg.seed)
+            diff = bootstrap_ci(
+                a - b, resamples=cfg.bootstrap_resamples, level=cfg.ci_level, seed=cfg.seed
+            )
             p = paired_permutation_test(a, b, permutations=cfg.permutations, seed=cfg.seed)
             tests[m] = {
                 "diff": round(diff.mean, 4),
@@ -516,12 +525,15 @@ def latency_stage(
     trained: TrainOutcome,
     cfg: BenchConfig,
 ) -> dict[str, dict[str, object]]:
-    """Wall time per question with a cold reader cache: retrieval, reasoning and answer reading."""
+    """Wall time per question with cold caches: retrieval, reasoning and answer reading."""
     questions = ws.questions[: cfg.latency_n]
+    dense = ws.retrievers["dense"]
+    assert isinstance(dense, Dense)
     out: dict[str, dict[str, object]] = {}
     for spec in specs:
         times: list[float] = []
         for q in questions:
+            dense.forget_queries()
             cache = ReaderCache(models.reader, ws.corpus)
             loop = build_loop(spec, ws, cache, trained.policy, trained.controller, cfg)
             t0 = time.perf_counter()
@@ -567,12 +579,15 @@ def run_dataset(
             (traces / dataset).mkdir(parents=True, exist_ok=True)
             sink = (traces / dataset / f"{spec.name}.jsonl").open("w", encoding="utf-8")
         try:
-            for q in eval_q:
+            for i, q in enumerate(eval_q, start=1):
                 result = loop.run(q)
                 scored = score_question(q, result, eval_ws, cache, cfg)
                 rows.append(scored)
                 if sink is not None:
                     sink.write(json.dumps(trace_record(result, scored), ensure_ascii=False) + "\n")
+                if i % 250 == 0 and i < len(eval_q):
+                    elapsed = time.perf_counter() - t0
+                    log(f"[{dataset}] {spec.name}: {i}/{len(eval_q)} questions, {elapsed:.0f} s")
         finally:
             if sink is not None:
                 sink.close()

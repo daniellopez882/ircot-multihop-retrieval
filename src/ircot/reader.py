@@ -8,13 +8,14 @@ evidence sentence and match the span against corpus titles.
 
 from __future__ import annotations
 
-import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
 import numpy as np
+
+from ircot.sessions import cpu_session
 
 
 @dataclass(frozen=True)
@@ -93,7 +94,6 @@ class OnnxSquadReader:
         threads: int | None = None,
         name: str = "minilm-uncased-squad2",
     ) -> None:
-        import onnxruntime as ort
         from tokenizers import BertWordPieceTokenizer
 
         self.name = name
@@ -101,12 +101,7 @@ class OnnxSquadReader:
         self.batch_size = batch_size
         self.tokenizer = BertWordPieceTokenizer(str(vocab_path), lowercase=True)
         self.tokenizer.enable_truncation(max_length, stride=stride, strategy="only_second")
-        opts = ort.SessionOptions()
-        opts.intra_op_num_threads = threads or os.cpu_count() or 1
-        opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-        self.session = ort.InferenceSession(
-            str(model_path), opts, providers=["CPUExecutionProvider"]
-        )
+        self.session = cpu_session(model_path, threads)
 
     def read(self, question: str, passages: Sequence[str], top_n: int = 3) -> list[list[Span]]:
         windows: list[tuple[int, object]] = []

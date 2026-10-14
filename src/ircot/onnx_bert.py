@@ -4,12 +4,16 @@ The reader checkpoint (deepset/minilm-uncased-squad2) is published as PyTorch/sa
 Exporting it the usual way needs torch, which is far larger than everything else this project
 installs, so the graph is written op by op with ``onnx.helper`` instead (see ADR 0002). The graph
 is the standard post-LayerNorm BERT encoder with exact erf GELU and a linear span head.
+
+Each encoder layer uses onnxruntime's fused CPU operators (``Attention``, ``SkipLayerNormalization``
+and ``BiasGelu`` from the ``com.microsoft`` domain) rather than the equivalent chain of standard
+ops; tests/test_reader.py checks the result against a plain NumPy implementation. The graph
+therefore runs on onnxruntime only.
 """
 
 from __future__ import annotations
 
 import json
-import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +23,7 @@ import onnx
 from onnx import TensorProto, helper, numpy_helper
 
 OPSET = 17  # first opset with a native LayerNormalization
+MS_DOMAIN = "com.microsoft"  # onnxruntime contrib ops: Attention, SkipLayerNormalization, BiasGelu
 
 
 @dataclass(frozen=True)
@@ -66,6 +71,30 @@ class _Graph:
         b = self.const(f"{stem}_b", bias.astype(np.float32))
         return self.op("Add", [self.op("MatMul", [x, w], f"{stem}_mm"), b], stem)
 
+    def matmul(self, x: str, weight: np.ndarray, stem: str) -> str:
+        w = self.const(f"{stem}_w", np.ascontiguousarray(weight.T.astype(np.float32)))
+        return self.op("MatMul", [x, w], stem)
+
+    def skip_layer_norm(
+        self,
+        x: str,
+        skip: str,
+        scale: np.ndarray,
+        shift: np.ndarray,
+        bias: np.ndarray,
+        eps: float,
+        stem: str,
+    ) -> str:
+        """LayerNorm(x + bias + skip): a residual block's bias, residual add and norm in one op."""
+        inputs = [
+            x,
+            skip,
+            self.const(f"{stem}_g", scale.astype(np.float32)),
+            self.const(f"{stem}_b", shift.astype(np.float32)),
+            self.const(f"{stem}_bias", bias.astype(np.float32)),
+        ]
+        return self.op("SkipLayerNormalization", inputs, stem, domain=MS_DOMAIN, epsilon=eps)
+
     def layer_norm(self, x: str, scale: np.ndarray, bias: np.ndarray, eps: float, stem: str) -> str:
         s = self.const(f"{stem}_g", scale.astype(np.float32))
         b = self.const(f"{stem}_b", bias.astype(np.float32))
@@ -76,7 +105,6 @@ def build_qa_graph(weights: Mapping[str, np.ndarray], shape: BertShape) -> onnx.
     """ONNX model with inputs ``input_ids``, ``attention_mask``, ``token_type_ids`` (int64, [B, S])
     and outputs ``start_logits``, ``end_logits`` (float32, [B, S])."""
     g = _Graph()
-    head_dim = shape.hidden // shape.heads
     p = "bert."
 
     tokens = g.op(
@@ -116,73 +144,55 @@ def build_qa_graph(weights: Mapping[str, np.ndarray], shape: BertShape) -> onnx.
         "emb_ln",
     )
 
-    # Additive mask [B, 1, 1, S]: 0 where attended, -10000 on padding (the BERT convention).
-    mask = g.op("Cast", ["attention_mask"], "mask_f", to=TensorProto.FLOAT)
-    mask = g.op("Sub", [g.const("ones", np.array(1.0, np.float32)), mask], "mask_inv")
-    mask = g.op("Mul", [mask, g.const("neg", np.array(-10000.0, np.float32))], "mask_neg")
-    mask = g.op("Unsqueeze", [mask, g.const("axes", np.array([1, 2], np.int64))], "mask4d")
-
-    split_heads = g.const("split", np.array([0, 0, shape.heads, head_dim], np.int64))
-    merge_heads = g.const("merge", np.array([0, 0, shape.hidden], np.int64))
-    scale = g.const("scale", np.array(1.0 / math.sqrt(head_dim), np.float32))
-    half = g.const("half", np.array(0.5, np.float32))
-    one = g.const("one_f", np.array(1.0, np.float32))
-    inv_sqrt2 = g.const("inv_sqrt2", np.array(1.0 / math.sqrt(2.0), np.float32))
+    # onnxruntime's fused Attention takes the raw 0/1 mask and applies -10000 to padded keys,
+    # the same convention as the original BERT.
+    mask = g.op("Cast", ["attention_mask"], "mask_i32", to=TensorProto.INT32)
 
     for layer in range(shape.layers):
         lp = f"{p}encoder.layer.{layer}."
-
-        heads: dict[str, str] = {}
-        for kind, perm in (("query", [0, 2, 1, 3]), ("key", [0, 2, 3, 1]), ("value", [0, 2, 1, 3])):
-            y = g.linear(
+        # One [hidden, 3 * hidden] projection for query, key and value.
+        qkv_w = np.concatenate(
+            [weights[f"{lp}attention.self.{k}.weight"].T for k in ("query", "key", "value")], axis=1
+        )
+        qkv_b = np.concatenate(
+            [weights[f"{lp}attention.self.{k}.bias"] for k in ("query", "key", "value")]
+        )
+        ctx = g.op(
+            "Attention",
+            [
                 x,
-                weights[f"{lp}attention.self.{kind}.weight"],
-                weights[f"{lp}attention.self.{kind}.bias"],
-                f"l{layer}_{kind}",
-            )
-            heads[kind] = g.op(
-                "Transpose", [g.op("Reshape", [y, split_heads], "heads")], "t", perm=perm
-            )
-        q, k, v = heads["query"], heads["key"], heads["value"]
-        scores = g.op(
-            "Add", [g.op("Mul", [g.op("MatMul", [q, k], "qk"), scale], "scaled"), mask], "masked"
+                g.const(f"l{layer}_qkv_w", np.ascontiguousarray(qkv_w, dtype=np.float32)),
+                g.const(f"l{layer}_qkv_b", qkv_b.astype(np.float32)),
+                mask,
+            ],
+            f"l{layer}_attn",
+            domain=MS_DOMAIN,
+            num_heads=shape.heads,
         )
-        probs = g.op("Softmax", [scores], "probs", axis=-1)
-        ctx = g.op("Transpose", [g.op("MatMul", [probs, v], "ctx")], "ctx_t", perm=[0, 2, 1, 3])
-        ctx = g.op("Reshape", [ctx, merge_heads], "ctx_m")
-        attn = g.linear(
-            ctx,
-            weights[f"{lp}attention.output.dense.weight"],
-            weights[f"{lp}attention.output.dense.bias"],
-            f"l{layer}_attn_out",
-        )
-        x = g.layer_norm(
-            g.op("Add", [attn, x], "res1"),
+        attn = g.matmul(ctx, weights[f"{lp}attention.output.dense.weight"], f"l{layer}_attn_out")
+        x = g.skip_layer_norm(
+            attn,
+            x,
             weights[f"{lp}attention.output.LayerNorm.weight"],
             weights[f"{lp}attention.output.LayerNorm.bias"],
+            weights[f"{lp}attention.output.dense.bias"],
             shape.eps,
             f"l{layer}_ln1",
         )
-        inter = g.linear(
-            x,
-            weights[f"{lp}intermediate.dense.weight"],
-            weights[f"{lp}intermediate.dense.bias"],
-            f"l{layer}_inter",
-        )
-        erf = g.op("Erf", [g.op("Mul", [inter, inv_sqrt2], "gelu_in")], "erf")
+        inter = g.matmul(x, weights[f"{lp}intermediate.dense.weight"], f"l{layer}_inter")
         gelu = g.op(
-            "Mul", [g.op("Mul", [inter, half], "gelu_h"), g.op("Add", [erf, one], "gelu_e")], "gelu"
+            "BiasGelu",
+            [inter, g.const(f"l{layer}_inter_b", weights[f"{lp}intermediate.dense.bias"])],
+            f"l{layer}_gelu",
+            domain=MS_DOMAIN,
         )
-        out = g.linear(
-            gelu,
-            weights[f"{lp}output.dense.weight"],
-            weights[f"{lp}output.dense.bias"],
-            f"l{layer}_out",
-        )
-        x = g.layer_norm(
-            g.op("Add", [out, x], "res2"),
+        out = g.matmul(gelu, weights[f"{lp}output.dense.weight"], f"l{layer}_out")
+        x = g.skip_layer_norm(
+            out,
+            x,
             weights[f"{lp}output.LayerNorm.weight"],
             weights[f"{lp}output.LayerNorm.bias"],
+            weights[f"{lp}output.dense.bias"],
             shape.eps,
             f"l{layer}_ln2",
         )
@@ -209,7 +219,9 @@ def build_qa_graph(weights: Mapping[str, np.ndarray], shape: BertShape) -> onnx.
         initializer=g.inits,
     )
     model = helper.make_model(
-        graph, opset_imports=[helper.make_opsetid("", OPSET)], producer_name="ircot"
+        graph,
+        opset_imports=[helper.make_opsetid("", OPSET), helper.make_opsetid(MS_DOMAIN, 1)],
+        producer_name="ircot",
     )
     model.ir_version = 8
     onnx.checker.check_model(model)
