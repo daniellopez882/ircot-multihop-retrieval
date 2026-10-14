@@ -42,7 +42,7 @@ def test_every_configuration_reports_metrics_costs_and_tests(offline_run) -> Non
     assert set(results) == {c.name for c in CONFIGS}
     for name, r in results.items():
         assert r["n"] == 30
-        for m in ("recall@2", "recall@5", "recall@10", "em", "f1"):
+        for m in ("recall@2", "recall@5", "recall@10", "em", "f1", "complete@10"):
             assert (
                 r["metrics"][m]["ci_low"] <= r["metrics"][m]["mean"] <= r["metrics"][m]["ci_high"]
             )

@@ -36,7 +36,7 @@ from ircot.data import (
 from ircot.encoders import Encoder, cached_passage_embeddings
 from ircot.loop import Budget, InterleavedLoop, LearnedStop, LoopResult, NeverStop, StopRule
 from ircot.manifest import config_hash, git_sha, local_date, local_timestamp, machine_info
-from ircot.metrics import best_em, best_f1, recall_at_k
+from ircot.metrics import best_em, best_f1, complete_at_k, recall_at_k
 from ircot.policies import POLICIES, QueryPolicy
 from ircot.pool import PassageStats
 from ircot.reader import Reader
@@ -335,6 +335,7 @@ def score_question(
         "recall@5": recall_at_k(result.ranking, gold, 5),
         "recall@10": recall_at_k(result.ranking, gold, 10),
         "recall@pool": recall_at_k(result.ranking, gold, len(result.ranking)),
+        "complete@10": complete_at_k(result.ranking, gold, 10),
         "pool_size": len(result.ranking),
         "pool_tokens": result.pool_tokens,
         "answer": answer,
@@ -463,7 +464,7 @@ def summarise(
 ) -> dict[str, object]:
     out: dict[str, object] = {"n": len(rows)}
     metrics: dict[str, object] = {}
-    for m in (*METRICS, "recall@pool"):
+    for m in (*METRICS, "recall@pool", "complete@10"):
         values = [float(r[m]) for r in rows]  # type: ignore[arg-type]
         ci = bootstrap_ci(
             values, resamples=cfg.bootstrap_resamples, level=cfg.ci_level, seed=cfg.seed

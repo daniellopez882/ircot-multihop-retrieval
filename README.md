@@ -145,7 +145,9 @@ Measured on: Intel i5-8500 (6 cores), 12 GB RAM, Windows 10, CPU only. Date: pen
 All numbers below will come from `bench/results/full.json`; until the full run exists every cell
 reads "pending benchmark". Recall is the fraction of a question's gold supporting paragraphs in
 the first k of the ranking; EM/F1 use SQuAD normalisation with MuSiQue's answer aliases;
-brackets are 95% percentile bootstrap intervals over questions.
+brackets are 95% percentile bootstrap intervals over questions. The results file also holds
+`recall@pool` (recall of everything the loop retrieved) and `complete@10` (share of questions
+with every gold paragraph in the first ten).
 
 ### MuSiQue-Ans dev, 1,000 questions
 

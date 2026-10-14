@@ -127,6 +127,7 @@ def test_chain_of_thought_reasoner_queries_with_its_newest_sentence() -> None:
     t2 = reasoner.step(2, [1])
     assert t2.says_done
     assert t2.answer == "Miquette Giraudy"
+    assert t2.note.endswith("So the answer is: Miquette Giraudy.")
     prompt = provider.calls[-1][1]["content"]
     assert "Title: Steve Hillage" in prompt
     assert "Reasoning so far: Green was performed by Steve Hillage." in prompt

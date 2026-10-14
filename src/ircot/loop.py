@@ -83,6 +83,7 @@ class HopRecord:
     bridge: str | None = None
     bridge_title_match: bool = False
     answer: str = ""
+    thought: str = ""
     features: dict[str, float] | None = None
     stop_probability: float | None = None
     decision: str = ""
@@ -206,6 +207,7 @@ class InterleavedLoop:
                 rec.bridge = thought.bridge.entity if thought.bridge else None
                 rec.bridge_title_match = bool(thought.bridge and thought.bridge.title_match)
                 rec.answer = thought.answer
+                rec.thought = thought.note
                 state = State.DECIDE
             else:  # DECIDE
                 assert thought is not None
