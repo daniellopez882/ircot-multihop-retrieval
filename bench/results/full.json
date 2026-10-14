@@ -1,0 +1,2005 @@
+{
+  "benchmark": "ircot-multihop-retrieval",
+  "profile": "models",
+  "date": "2026-10-14",
+  "timestamp": "2026-10-14T11:32:39+05:00",
+  "git_sha": "000fb52c25312e7a7163fa32d8dfa07e9ac8547a",
+  "command": "ircot bench --out bench/results/full.json",
+  "machine": {
+    "cpu": "Intel(R) Core(TM) i5-8500 CPU @ 3.00GHz",
+    "physical_cores": 6,
+    "logical_cpus": 6,
+    "ram_gb": 11.9,
+    "os": "Windows-10-10.0.19045-SP0",
+    "python": "3.12.14",
+    "packages": {
+      "numpy": "2.5.4",
+      "scipy": "1.18.1",
+      "onnxruntime": "1.31.0",
+      "onnx": "1.23.2",
+      "tokenizers": "0.23.3",
+      "pyarrow": "26.0.0",
+      "huggingface-hub": "2.2.0"
+    },
+    "accelerator": "none (CPU only)"
+  },
+  "config": {
+    "profile": "models",
+    "datasets": [
+      "musique",
+      "hotpotqa"
+    ],
+    "n_eval": 1000,
+    "n_train": 200,
+    "latency_n": 30,
+    "seed": 2026,
+    "k_oneshot": 10,
+    "k_hop": 5,
+    "read_per_hop": 3,
+    "answer_depth": 5,
+    "ircot_max_steps": 4,
+    "pool_token_budget": 3000,
+    "title_bonus": 4.0,
+    "bm25_k1": 0.9,
+    "bm25_b": 0.4,
+    "hybrid_alphas": [
+      0.5,
+      0.25,
+      0.75
+    ],
+    "hybrid_depth": 100,
+    "controller_l2": 1.0,
+    "controller_threshold": 0.5,
+    "bootstrap_resamples": 2000,
+    "ci_level": 0.95,
+    "permutations": 10000
+  },
+  "config_hash": "245ef829806ee803a26417e93c98dba9fe65c6939e06ab65dbbc380fe8deefbc",
+  "configs": {
+    "oneshot-bm25": {
+      "name": "oneshot-bm25",
+      "retriever": "bm25",
+      "steps": 1,
+      "reasoner": null,
+      "stop": "never",
+      "only": [],
+      "description": "question as the only query, BM25"
+    },
+    "oneshot-dense": {
+      "name": "oneshot-dense",
+      "retriever": "dense",
+      "steps": 1,
+      "reasoner": null,
+      "stop": "never",
+      "only": [],
+      "description": "question as the only query, bge-small"
+    },
+    "oneshot-hybrid": {
+      "name": "oneshot-hybrid",
+      "retriever": "hybrid",
+      "steps": 1,
+      "reasoner": null,
+      "stop": "never",
+      "only": [],
+      "description": "question as the only query, fused"
+    },
+    "loop2-title-feedback": {
+      "name": "loop2-title-feedback",
+      "retriever": "hybrid",
+      "steps": 2,
+      "reasoner": "title-feedback",
+      "stop": "never",
+      "only": [],
+      "description": "2 steps, next query = question + best new title; no reader"
+    },
+    "loop2-extractive": {
+      "name": "loop2-extractive",
+      "retriever": "hybrid",
+      "steps": 2,
+      "reasoner": "extractive",
+      "stop": "never",
+      "only": [],
+      "description": "2 fixed steps, reader bridge"
+    },
+    "loop3-extractive": {
+      "name": "loop3-extractive",
+      "retriever": "hybrid",
+      "steps": 3,
+      "reasoner": "extractive",
+      "stop": "never",
+      "only": [],
+      "description": "3 fixed steps, reader bridge"
+    },
+    "ircot-extractive": {
+      "name": "ircot-extractive",
+      "retriever": "hybrid",
+      "steps": 4,
+      "reasoner": "extractive",
+      "stop": "learned",
+      "only": [],
+      "description": "up to 4 steps, reader bridge, learned stop"
+    },
+    "loop-oracle-bridge": {
+      "name": "loop-oracle-bridge",
+      "retriever": "hybrid",
+      "steps": 4,
+      "reasoner": "oracle-bridge",
+      "stop": "never",
+      "only": [
+        "musique",
+        "synthetic"
+      ],
+      "description": "gold intermediate answers as bridges (reasoner ceiling)"
+    }
+  },
+  "models": {
+    "encoder": {
+      "repo": "BAAI/bge-small-en-v1.5",
+      "revision": "5c38ec7c405ec4b44b94cc5a9bb96e735b38267a",
+      "file": "onnx/model.onnx",
+      "sha256": "828e1496d7fabb79cfa4dcd84fa38625c0d3d21da474a00f08db0f559940cf35",
+      "license": "MIT"
+    },
+    "reader": {
+      "repo": "deepset/minilm-uncased-squad2",
+      "revision": "934656cdda79824eabf503ed56e15c01ddbdbe3f",
+      "weights_sha256": "240478c7251d5e55be35feb47177054b960259b9328af662ea3cee87ce9755a6",
+      "onnx_sha256": "5cecd2ed75c5c1787e35cce944939d2a5648128fdfb5952ab747ce8735085659",
+      "license": "CC BY 4.0",
+      "export": "ircot.onnx_bert (graph built from safetensors, opset 17)"
+    },
+    "token_counter": "bge-small WordPiece tokens"
+  },
+  "datasets": {
+    "musique": {
+      "file": "musique_ans_v1.0_dev.jsonl",
+      "sha256": "15fa63794d18a94ce12411aca6e2327e65b6e83b0b1490efab3f1962e48abf3b",
+      "bytes": 30439728,
+      "source": "https://drive.usercontent.google.com/download?id=1tGdADlNjWFaHLeZZGShh2IRcpO6Lv24h&export=download&confirm=t (zip member data/musique_ans_v1.0_dev.jsonl)",
+      "license": "CC BY 4.0",
+      "eval": {
+        "n": 1000,
+        "ids_sha256": "cf5f6dbd465fe5eb7659e88e07fae9217469310bbc3f0c4f50cda0ff1a403215",
+        "corpus_passages": 11535,
+        "corpus_sha256": "ee6a459555170e33e060dc962f4926ed4099d30fbf3696090ae9be1701f3a5e4",
+        "composition": {
+          "2hop": 521,
+          "3hop1": 232,
+          "3hop2": 69,
+          "4hop3": 44,
+          "4hop1": 103,
+          "4hop2": 31
+        }
+      },
+      "train": {
+        "n": 200,
+        "ids_sha256": "50255689e3142ddc7eea1df43389fe794753bf07d2cb17f5a3335bfe01af7551",
+        "corpus_passages": 3214,
+        "corpus_sha256": "35b6592434f4513fe9f36f1551a5ccc31eeebacde35b21b440c545a171e48354"
+      },
+      "alpha_selection": {
+        "recall@5_by_alpha": {
+          "0.5": 0.5333,
+          "0.25": 0.4888,
+          "0.75": 0.5708
+        },
+        "selected": 0.75,
+        "selected_by": "highest one-shot hybrid Recall@5 on the training sample"
+      },
+      "policy_selection": {
+        "append": {
+          "pool_recall": 0.7963,
+          "recall@5": 0.53,
+          "mean_pool_size": 19.37
+        },
+        "residual": {
+          "pool_recall": 0.7767,
+          "recall@5": 0.5296,
+          "mean_pool_size": 19.495
+        },
+        "sentence": {
+          "pool_recall": 0.7279,
+          "recall@5": 0.4904,
+          "mean_pool_size": 19.325
+        },
+        "selected": "append",
+        "selected_by": "highest pool recall of the 4-step loop on the training sample"
+      },
+      "stop_controller": {
+        "features": [
+          "hop",
+          "answer_margin",
+          "margin_gain",
+          "answer_stable",
+          "bridge_found",
+          "bridge_title_match",
+          "novelty",
+          "top_score",
+          "question_coverage"
+        ],
+        "mean": [
+          2.0,
+          5.050888694999999,
+          0.805231496666667,
+          0.5066666666666667,
+          1.0,
+          0.07666666666666666,
+          0.9923333333333335,
+          0.7736733799999997,
+          0.7867582650000016
+        ],
+        "scale": [
+          0.816496580927726,
+          6.395809733785618,
+          2.490542583424695,
+          0.49995555358007254,
+          1.0,
+          0.26606181403743,
+          0.04172795492499276,
+          0.16815730978076934,
+          0.14923114846791008
+        ],
+        "coef": [
+          0.4352207634972136,
+          0.26357633906649547,
+          -0.02728382537192924,
+          0.028331951734888196,
+          0.0,
+          -0.14971736131496477,
+          -0.07475995740469646,
+          -0.5486757677879187,
+          0.10484425283960053
+        ],
+        "intercept": 1.2403089075937181,
+        "threshold": 0.5,
+        "l2": 1.0,
+        "train_rows": 600,
+        "train_positive": 438,
+        "iterations": 6,
+        "train_accuracy": 0.7417,
+        "train_positive_rate": 0.73,
+        "policy": "append",
+        "label": "1 if no later hop of the training loop adds a gold passage"
+      },
+      "results": {
+        "oneshot-bm25": {
+          "n": 1000,
+          "metrics": {
+            "recall@2": {
+              "mean": 0.3548,
+              "ci_low": 0.3398,
+              "ci_high": 0.3701
+            },
+            "recall@5": {
+              "mean": 0.4484,
+              "ci_low": 0.4318,
+              "ci_high": 0.4652
+            },
+            "recall@10": {
+              "mean": 0.5119,
+              "ci_low": 0.4947,
+              "ci_high": 0.5295
+            },
+            "em": {
+              "mean": 0.089,
+              "ci_low": 0.072,
+              "ci_high": 0.106
+            },
+            "f1": {
+              "mean": 0.1559,
+              "ci_low": 0.1362,
+              "ci_high": 0.1742
+            },
+            "recall@pool": {
+              "mean": 0.5119,
+              "ci_low": 0.4947,
+              "ci_high": 0.5295
+            },
+            "complete@10": {
+              "mean": 0.16,
+              "ci_low": 0.137,
+              "ci_high": 0.184
+            }
+          },
+          "cost": {
+            "retrieval_calls_mean": 1.0,
+            "reader_passages_mean": 5.0,
+            "steps_mean": 1.0,
+            "pool_size_mean": 9.984,
+            "pool_tokens_mean": 1321.6
+          },
+          "stop_reasons": {
+            "step-budget": 1000
+          },
+          "vs_oneshot-hybrid": {
+            "recall@2": {
+              "diff": -0.0582,
+              "ci_low": -0.0723,
+              "ci_high": -0.0439,
+              "p_value": 0.0001
+            },
+            "recall@5": {
+              "diff": -0.0882,
+              "ci_low": -0.1029,
+              "ci_high": -0.0737,
+              "p_value": 0.0001
+            },
+            "recall@10": {
+              "diff": -0.0985,
+              "ci_low": -0.1121,
+              "ci_high": -0.0844,
+              "p_value": 0.0001
+            },
+            "em": {
+              "diff": -0.012,
+              "ci_low": -0.028,
+              "ci_high": 0.004,
+              "p_value": 0.19068
+            },
+            "f1": {
+              "diff": -0.0173,
+              "ci_low": -0.0342,
+              "ci_high": -0.0012,
+              "p_value": 0.0494
+            }
+          },
+          "description": "question as the only query, BM25",
+          "latency": {
+            "n": 30,
+            "p50_ms": 180.45,
+            "p95_ms": 467.39,
+            "order": "configurations interleaved per question"
+          },
+          "by_hops": {
+            "2": {
+              "n": 521,
+              "recall@2": 0.4386,
+              "recall@5": 0.5317,
+              "recall@10": 0.596,
+              "em": 0.0864,
+              "f1": 0.1524
+            },
+            "3": {
+              "n": 301,
+              "recall@2": 0.3068,
+              "recall@5": 0.4042,
+              "recall@10": 0.4806,
+              "em": 0.103,
+              "f1": 0.1544
+            },
+            "4": {
+              "n": 178,
+              "recall@2": 0.191,
+              "recall@5": 0.2795,
+              "recall@10": 0.3188,
+              "em": 0.073,
+              "f1": 0.1685
+            }
+          }
+        },
+        "oneshot-dense": {
+          "n": 1000,
+          "metrics": {
+            "recall@2": {
+              "mean": 0.3786,
+              "ci_low": 0.363,
+              "ci_high": 0.3938
+            },
+            "recall@5": {
+              "mean": 0.488,
+              "ci_low": 0.4707,
+              "ci_high": 0.5044
+            },
+            "recall@10": {
+              "mean": 0.5664,
+              "ci_low": 0.5495,
+              "ci_high": 0.5833
+            },
+            "em": {
+              "mean": 0.09,
+              "ci_low": 0.073,
+              "ci_high": 0.108
+            },
+            "f1": {
+              "mean": 0.1556,
+              "ci_low": 0.1354,
+              "ci_high": 0.1748
+            },
+            "recall@pool": {
+              "mean": 0.5664,
+              "ci_low": 0.5495,
+              "ci_high": 0.5833
+            },
+            "complete@10": {
+              "mean": 0.212,
+              "ci_low": 0.186,
+              "ci_high": 0.238
+            }
+          },
+          "cost": {
+            "retrieval_calls_mean": 1.0,
+            "reader_passages_mean": 5.0,
+            "steps_mean": 1.0,
+            "pool_size_mean": 9.991,
+            "pool_tokens_mean": 1202.7
+          },
+          "stop_reasons": {
+            "step-budget": 1000
+          },
+          "vs_oneshot-hybrid": {
+            "recall@2": {
+              "diff": -0.0344,
+              "ci_low": -0.045,
+              "ci_high": -0.0237,
+              "p_value": 0.0001
+            },
+            "recall@5": {
+              "diff": -0.0487,
+              "ci_low": -0.06,
+              "ci_high": -0.038,
+              "p_value": 0.0001
+            },
+            "recall@10": {
+              "diff": -0.044,
+              "ci_low": -0.0551,
+              "ci_high": -0.0325,
+              "p_value": 0.0001
+            },
+            "em": {
+              "diff": -0.011,
+              "ci_low": -0.022,
+              "ci_high": 0.0,
+              "p_value": 0.07549
+            },
+            "f1": {
+              "diff": -0.0176,
+              "ci_low": -0.0304,
+              "ci_high": -0.0052,
+              "p_value": 0.0084
+            }
+          },
+          "description": "question as the only query, bge-small",
+          "latency": {
+            "n": 30,
+            "p50_ms": 184.56,
+            "p95_ms": 272.74,
+            "order": "configurations interleaved per question"
+          },
+          "by_hops": {
+            "2": {
+              "n": 521,
+              "recall@2": 0.4635,
+              "recall@5": 0.5787,
+              "recall@10": 0.6516,
+              "em": 0.1036,
+              "f1": 0.1736
+            },
+            "3": {
+              "n": 301,
+              "recall@2": 0.3333,
+              "recall@5": 0.4551,
+              "recall@10": 0.5437,
+              "em": 0.093,
+              "f1": 0.146
+            },
+            "4": {
+              "n": 178,
+              "recall@2": 0.2065,
+              "recall@5": 0.2781,
+              "recall@10": 0.3553,
+              "em": 0.0449,
+              "f1": 0.1191
+            }
+          }
+        },
+        "oneshot-hybrid": {
+          "n": 1000,
+          "metrics": {
+            "recall@2": {
+              "mean": 0.413,
+              "ci_low": 0.3981,
+              "ci_high": 0.4283
+            },
+            "recall@5": {
+              "mean": 0.5367,
+              "ci_low": 0.5202,
+              "ci_high": 0.5527
+            },
+            "recall@10": {
+              "mean": 0.6104,
+              "ci_low": 0.5938,
+              "ci_high": 0.6257
+            },
+            "em": {
+              "mean": 0.101,
+              "ci_low": 0.083,
+              "ci_high": 0.119
+            },
+            "f1": {
+              "mean": 0.1731,
+              "ci_low": 0.1531,
+              "ci_high": 0.1928
+            },
+            "recall@pool": {
+              "mean": 0.6104,
+              "ci_low": 0.5938,
+              "ci_high": 0.6257
+            },
+            "complete@10": {
+              "mean": 0.247,
+              "ci_low": 0.221,
+              "ci_high": 0.273
+            }
+          },
+          "cost": {
+            "retrieval_calls_mean": 1.0,
+            "reader_passages_mean": 5.0,
+            "steps_mean": 1.0,
+            "pool_size_mean": 9.99,
+            "pool_tokens_mean": 1233.6
+          },
+          "stop_reasons": {
+            "step-budget": 1000
+          },
+          "description": "question as the only query, fused",
+          "latency": {
+            "n": 30,
+            "p50_ms": 184.25,
+            "p95_ms": 275.15,
+            "order": "configurations interleaved per question"
+          },
+          "by_hops": {
+            "2": {
+              "n": 521,
+              "recall@2": 0.4923,
+              "recall@5": 0.6161,
+              "recall@10": 0.6891,
+              "em": 0.1132,
+              "f1": 0.1834
+            },
+            "3": {
+              "n": 301,
+              "recall@2": 0.3787,
+              "recall@5": 0.5138,
+              "recall@10": 0.5903,
+              "em": 0.1163,
+              "f1": 0.1798
+            },
+            "4": {
+              "n": 178,
+              "recall@2": 0.2388,
+              "recall@5": 0.3427,
+              "recall@10": 0.4143,
+              "em": 0.0393,
+              "f1": 0.1319
+            }
+          }
+        },
+        "loop2-title-feedback": {
+          "n": 1000,
+          "metrics": {
+            "recall@2": {
+              "mean": 0.3293,
+              "ci_low": 0.3165,
+              "ci_high": 0.3427
+            },
+            "recall@5": {
+              "mean": 0.5228,
+              "ci_low": 0.5057,
+              "ci_high": 0.5402
+            },
+            "recall@10": {
+              "mean": 0.6202,
+              "ci_low": 0.602,
+              "ci_high": 0.6369
+            },
+            "em": {
+              "mean": 0.114,
+              "ci_low": 0.095,
+              "ci_high": 0.134
+            },
+            "f1": {
+              "mean": 0.1855,
+              "ci_low": 0.1648,
+              "ci_high": 0.2077
+            },
+            "recall@pool": {
+              "mean": 0.6202,
+              "ci_low": 0.602,
+              "ci_high": 0.6369
+            },
+            "complete@10": {
+              "mean": 0.278,
+              "ci_low": 0.25,
+              "ci_high": 0.305
+            }
+          },
+          "cost": {
+            "retrieval_calls_mean": 2.0,
+            "reader_passages_mean": 5.0,
+            "steps_mean": 2.0,
+            "pool_size_mean": 9.983,
+            "pool_tokens_mean": 1269.2
+          },
+          "stop_reasons": {
+            "step-budget": 1000
+          },
+          "vs_oneshot-hybrid": {
+            "recall@2": {
+              "diff": -0.0837,
+              "ci_low": -0.0958,
+              "ci_high": -0.0698,
+              "p_value": 0.0001
+            },
+            "recall@5": {
+              "diff": -0.0138,
+              "ci_low": -0.0262,
+              "ci_high": -0.001,
+              "p_value": 0.0388
+            },
+            "recall@10": {
+              "diff": 0.0098,
+              "ci_low": 0.0003,
+              "ci_high": 0.0194,
+              "p_value": 0.0481
+            },
+            "em": {
+              "diff": 0.013,
+              "ci_low": -0.002,
+              "ci_high": 0.029,
+              "p_value": 0.12419
+            },
+            "f1": {
+              "diff": 0.0124,
+              "ci_low": -0.0044,
+              "ci_high": 0.0296,
+              "p_value": 0.14509
+            }
+          },
+          "description": "2 steps, next query = question + best new title; no reader",
+          "latency": {
+            "n": 30,
+            "p50_ms": 241.77,
+            "p95_ms": 307.46,
+            "order": "configurations interleaved per question"
+          },
+          "by_hops": {
+            "2": {
+              "n": 521,
+              "recall@2": 0.4203,
+              "recall@5": 0.6142,
+              "recall@10": 0.6996,
+              "em": 0.119,
+              "f1": 0.1891
+            },
+            "3": {
+              "n": 301,
+              "recall@2": 0.2636,
+              "recall@5": 0.4895,
+              "recall@10": 0.608,
+              "em": 0.1495,
+              "f1": 0.2113
+            },
+            "4": {
+              "n": 178,
+              "recall@2": 0.1742,
+              "recall@5": 0.3118,
+              "recall@10": 0.4087,
+              "em": 0.0393,
+              "f1": 0.1313
+            }
+          }
+        },
+        "loop2-extractive": {
+          "n": 1000,
+          "metrics": {
+            "recall@2": {
+              "mean": 0.359,
+              "ci_low": 0.3437,
+              "ci_high": 0.3758
+            },
+            "recall@5": {
+              "mean": 0.5537,
+              "ci_low": 0.5359,
+              "ci_high": 0.5724
+            },
+            "recall@10": {
+              "mean": 0.6593,
+              "ci_low": 0.6411,
+              "ci_high": 0.6769
+            },
+            "em": {
+              "mean": 0.108,
+              "ci_low": 0.089,
+              "ci_high": 0.126
+            },
+            "f1": {
+              "mean": 0.1831,
+              "ci_low": 0.163,
+              "ci_high": 0.2031
+            },
+            "recall@pool": {
+              "mean": 0.6593,
+              "ci_low": 0.6411,
+              "ci_high": 0.6769
+            },
+            "complete@10": {
+              "mean": 0.351,
+              "ci_low": 0.322,
+              "ci_high": 0.38
+            }
+          },
+          "cost": {
+            "retrieval_calls_mean": 2.0,
+            "reader_passages_mean": 5.0,
+            "steps_mean": 2.0,
+            "pool_size_mean": 9.988,
+            "pool_tokens_mean": 1269.1
+          },
+          "stop_reasons": {
+            "step-budget": 1000
+          },
+          "vs_oneshot-hybrid": {
+            "recall@2": {
+              "diff": -0.054,
+              "ci_low": -0.0692,
+              "ci_high": -0.0388,
+              "p_value": 0.0001
+            },
+            "recall@5": {
+              "diff": 0.017,
+              "ci_low": 0.0016,
+              "ci_high": 0.032,
+              "p_value": 0.0272
+            },
+            "recall@10": {
+              "diff": 0.0489,
+              "ci_low": 0.037,
+              "ci_high": 0.0615,
+              "p_value": 0.0001
+            },
+            "em": {
+              "diff": 0.007,
+              "ci_low": -0.007,
+              "ci_high": 0.021,
+              "p_value": 0.40236
+            },
+            "f1": {
+              "diff": 0.01,
+              "ci_low": -0.005,
+              "ci_high": 0.0247,
+              "p_value": 0.19988
+            }
+          },
+          "description": "2 fixed steps, reader bridge",
+          "latency": {
+            "n": 30,
+            "p50_ms": 184.73,
+            "p95_ms": 266.36,
+            "order": "configurations interleaved per question"
+          },
+          "by_hops": {
+            "2": {
+              "n": 521,
+              "recall@2": 0.4645,
+              "recall@5": 0.6651,
+              "recall@10": 0.761,
+              "em": 0.1209,
+              "f1": 0.2014
+            },
+            "3": {
+              "n": 301,
+              "recall@2": 0.2791,
+              "recall@5": 0.4972,
+              "recall@10": 0.6257,
+              "em": 0.113,
+              "f1": 0.1683
+            },
+            "4": {
+              "n": 178,
+              "recall@2": 0.1854,
+              "recall@5": 0.323,
+              "recall@10": 0.4185,
+              "em": 0.0618,
+              "f1": 0.1549
+            }
+          }
+        },
+        "loop3-extractive": {
+          "n": 1000,
+          "metrics": {
+            "recall@2": {
+              "mean": 0.359,
+              "ci_low": 0.3437,
+              "ci_high": 0.3758
+            },
+            "recall@5": {
+              "mean": 0.5068,
+              "ci_low": 0.4885,
+              "ci_high": 0.5248
+            },
+            "recall@10": {
+              "mean": 0.631,
+              "ci_low": 0.6129,
+              "ci_high": 0.6483
+            },
+            "em": {
+              "mean": 0.089,
+              "ci_low": 0.072,
+              "ci_high": 0.107
+            },
+            "f1": {
+              "mean": 0.1625,
+              "ci_low": 0.1428,
+              "ci_high": 0.181
+            },
+            "recall@pool": {
+              "mean": 0.6981,
+              "ci_low": 0.6805,
+              "ci_high": 0.7148
+            },
+            "complete@10": {
+              "mean": 0.312,
+              "ci_low": 0.283,
+              "ci_high": 0.341
+            }
+          },
+          "cost": {
+            "retrieval_calls_mean": 3.0,
+            "reader_passages_mean": 7.0,
+            "steps_mean": 3.0,
+            "pool_size_mean": 14.958,
+            "pool_tokens_mean": 1906.4
+          },
+          "stop_reasons": {
+            "step-budget": 1000
+          },
+          "vs_oneshot-hybrid": {
+            "recall@2": {
+              "diff": -0.054,
+              "ci_low": -0.0692,
+              "ci_high": -0.0388,
+              "p_value": 0.0001
+            },
+            "recall@5": {
+              "diff": -0.0298,
+              "ci_low": -0.0491,
+              "ci_high": -0.0122,
+              "p_value": 0.0015
+            },
+            "recall@10": {
+              "diff": 0.0206,
+              "ci_low": 0.0064,
+              "ci_high": 0.035,
+              "p_value": 0.0056
+            },
+            "em": {
+              "diff": -0.012,
+              "ci_low": -0.028,
+              "ci_high": 0.004,
+              "p_value": 0.20008
+            },
+            "f1": {
+              "diff": -0.0106,
+              "ci_low": -0.0292,
+              "ci_high": 0.0075,
+              "p_value": 0.25567
+            }
+          },
+          "description": "3 fixed steps, reader bridge",
+          "latency": {
+            "n": 30,
+            "p50_ms": 275.41,
+            "p95_ms": 367.72,
+            "order": "configurations interleaved per question"
+          },
+          "by_hops": {
+            "2": {
+              "n": 521,
+              "recall@2": 0.4645,
+              "recall@5": 0.6084,
+              "recall@10": 0.7255,
+              "em": 0.094,
+              "f1": 0.1751
+            },
+            "3": {
+              "n": 301,
+              "recall@2": 0.2791,
+              "recall@5": 0.4596,
+              "recall@10": 0.6013,
+              "em": 0.0963,
+              "f1": 0.1458
+            },
+            "4": {
+              "n": 178,
+              "recall@2": 0.1854,
+              "recall@5": 0.2893,
+              "recall@10": 0.4045,
+              "em": 0.0618,
+              "f1": 0.154
+            }
+          }
+        },
+        "ircot-extractive": {
+          "n": 1000,
+          "metrics": {
+            "recall@2": {
+              "mean": 0.3932,
+              "ci_low": 0.3768,
+              "ci_high": 0.4102
+            },
+            "recall@5": {
+              "mean": 0.5521,
+              "ci_low": 0.5344,
+              "ci_high": 0.5688
+            },
+            "recall@10": {
+              "mean": 0.6118,
+              "ci_low": 0.5933,
+              "ci_high": 0.629
+            },
+            "em": {
+              "mean": 0.108,
+              "ci_low": 0.09,
+              "ci_high": 0.127
+            },
+            "f1": {
+              "mean": 0.1848,
+              "ci_low": 0.1644,
+              "ci_high": 0.2047
+            },
+            "recall@pool": {
+              "mean": 0.612,
+              "ci_low": 0.5936,
+              "ci_high": 0.6292
+            },
+            "complete@10": {
+              "mean": 0.278,
+              "ci_low": 0.25,
+              "ci_high": 0.307
+            }
+          },
+          "cost": {
+            "retrieval_calls_mean": 1.578,
+            "reader_passages_mean": 5.586,
+            "steps_mean": 1.578,
+            "pool_size_mean": 7.883,
+            "pool_tokens_mean": 1002.8
+          },
+          "stop_reasons": {
+            "controller:learned": 1000
+          },
+          "vs_oneshot-hybrid": {
+            "recall@2": {
+              "diff": -0.0198,
+              "ci_low": -0.0311,
+              "ci_high": -0.0082,
+              "p_value": 0.0005
+            },
+            "recall@5": {
+              "diff": 0.0154,
+              "ci_low": 0.0038,
+              "ci_high": 0.0271,
+              "p_value": 0.0086
+            },
+            "recall@10": {
+              "diff": 0.0013,
+              "ci_low": -0.0104,
+              "ci_high": 0.0138,
+              "p_value": 0.83802
+            },
+            "em": {
+              "diff": 0.007,
+              "ci_low": -0.005,
+              "ci_high": 0.019,
+              "p_value": 0.33997
+            },
+            "f1": {
+              "diff": 0.0117,
+              "ci_low": -0.002,
+              "ci_high": 0.0254,
+              "p_value": 0.09889
+            }
+          },
+          "description": "up to 4 steps, reader bridge, learned stop",
+          "latency": {
+            "n": 30,
+            "p50_ms": 194.57,
+            "p95_ms": 290.79,
+            "order": "configurations interleaved per question"
+          },
+          "by_hops": {
+            "2": {
+              "n": 521,
+              "recall@2": 0.4942,
+              "recall@5": 0.6526,
+              "recall@10": 0.6967,
+              "em": 0.1209,
+              "f1": 0.2033
+            },
+            "3": {
+              "n": 301,
+              "recall@2": 0.3322,
+              "recall@5": 0.5094,
+              "recall@10": 0.5914,
+              "em": 0.1163,
+              "f1": 0.1723
+            },
+            "4": {
+              "n": 178,
+              "recall@2": 0.2008,
+              "recall@5": 0.3301,
+              "recall@10": 0.3975,
+              "em": 0.0562,
+              "f1": 0.1518
+            }
+          }
+        },
+        "loop-oracle-bridge": {
+          "n": 1000,
+          "metrics": {
+            "recall@2": {
+              "mean": 0.463,
+              "ci_low": 0.4455,
+              "ci_high": 0.4825
+            },
+            "recall@5": {
+              "mean": 0.7003,
+              "ci_low": 0.683,
+              "ci_high": 0.7189
+            },
+            "recall@10": {
+              "mean": 0.8418,
+              "ci_low": 0.8277,
+              "ci_high": 0.8552
+            },
+            "em": {
+              "mean": 0.151,
+              "ci_low": 0.13,
+              "ci_high": 0.173
+            },
+            "f1": {
+              "mean": 0.2261,
+              "ci_low": 0.2031,
+              "ci_high": 0.2488
+            },
+            "recall@pool": {
+              "mean": 0.8918,
+              "ci_low": 0.88,
+              "ci_high": 0.9037
+            },
+            "complete@10": {
+              "mean": 0.637,
+              "ci_low": 0.607,
+              "ci_high": 0.665
+            }
+          },
+          "cost": {
+            "retrieval_calls_mean": 2.657,
+            "reader_passages_mean": 5.0,
+            "steps_mean": 2.657,
+            "pool_size_mean": 13.179,
+            "pool_tokens_mean": 1681.7
+          },
+          "stop_reasons": {
+            "no-new-query": 822,
+            "step-budget": 178
+          },
+          "vs_oneshot-hybrid": {
+            "recall@2": {
+              "diff": 0.05,
+              "ci_low": 0.0315,
+              "ci_high": 0.0693,
+              "p_value": 0.0001
+            },
+            "recall@5": {
+              "diff": 0.1637,
+              "ci_low": 0.1436,
+              "ci_high": 0.1847,
+              "p_value": 0.0001
+            },
+            "recall@10": {
+              "diff": 0.2314,
+              "ci_low": 0.2161,
+              "ci_high": 0.2476,
+              "p_value": 0.0001
+            },
+            "em": {
+              "diff": 0.05,
+              "ci_low": 0.03,
+              "ci_high": 0.07,
+              "p_value": 0.0001
+            },
+            "f1": {
+              "diff": 0.0529,
+              "ci_low": 0.0315,
+              "ci_high": 0.0741,
+              "p_value": 0.0001
+            }
+          },
+          "description": "gold intermediate answers as bridges (reasoner ceiling)",
+          "latency": {
+            "n": 30,
+            "p50_ms": 183.25,
+            "p95_ms": 290.89,
+            "order": "configurations interleaved per question"
+          },
+          "by_hops": {
+            "2": {
+              "n": 521,
+              "recall@2": 0.5969,
+              "recall@5": 0.8244,
+              "recall@10": 0.9299,
+              "em": 0.1804,
+              "f1": 0.2618
+            },
+            "3": {
+              "n": 301,
+              "recall@2": 0.3555,
+              "recall@5": 0.6257,
+              "recall@10": 0.8217,
+              "em": 0.1229,
+              "f1": 0.1812
+            },
+            "4": {
+              "n": 178,
+              "recall@2": 0.2528,
+              "recall@5": 0.4635,
+              "recall@10": 0.618,
+              "em": 0.1124,
+              "f1": 0.1976
+            }
+          }
+        }
+      },
+      "reader_passages_computed": 14525,
+      "timings_s": {
+        "index_s": 461.8,
+        "train_s": 204.2,
+        "eval_s": 826.6,
+        "latency_s": 51.7
+      }
+    },
+    "hotpotqa": {
+      "file": "hotpotqa_distractor_validation.parquet",
+      "sha256": "c20b638ca82b21d04fe12e14ff417ad05153d4d215a65de54497fca4e972f7c6",
+      "bytes": 27452575,
+      "source": "https://huggingface.co/datasets/hotpotqa/hotpot_qa/resolve/1908d6afbbead072334abe2965f91bd2709910ab/distractor/validation-00000-of-00001.parquet",
+      "license": "CC BY-SA 4.0",
+      "eval": {
+        "n": 1000,
+        "ids_sha256": "2d9e03e6b437210c58088184df254d337e05179c19eac7b8a1e1c05c17b47d80",
+        "corpus_passages": 9798,
+        "corpus_sha256": "59506369c830dc582b24d6f9c558ff9fa4f594deabf261d42b7bf0909eb4fb5c",
+        "composition": {
+          "comparison": 208,
+          "bridge": 792
+        }
+      },
+      "train": {
+        "n": 200,
+        "ids_sha256": "5613b988fc7e719532d375ab1a573c4add88752942132f78575c47bd2d7ec8db",
+        "corpus_passages": 1982,
+        "corpus_sha256": "e35b32372bf151435f1492f831badf720ff6de0fc67708789970a9431310879d"
+      },
+      "alpha_selection": {
+        "recall@5_by_alpha": {
+          "0.5": 0.8525,
+          "0.25": 0.8,
+          "0.75": 0.88
+        },
+        "selected": 0.75,
+        "selected_by": "highest one-shot hybrid Recall@5 on the training sample"
+      },
+      "policy_selection": {
+        "append": {
+          "pool_recall": 0.985,
+          "recall@5": 0.79,
+          "mean_pool_size": 19.58
+        },
+        "residual": {
+          "pool_recall": 0.98,
+          "recall@5": 0.8125,
+          "mean_pool_size": 19.505
+        },
+        "sentence": {
+          "pool_recall": 0.9575,
+          "recall@5": 0.79,
+          "mean_pool_size": 19.7
+        },
+        "selected": "append",
+        "selected_by": "highest pool recall of the 4-step loop on the training sample"
+      },
+      "stop_controller": {
+        "features": [
+          "hop",
+          "answer_margin",
+          "margin_gain",
+          "answer_stable",
+          "bridge_found",
+          "bridge_title_match",
+          "novelty",
+          "top_score",
+          "question_coverage"
+        ],
+        "mean": [
+          2.0,
+          6.578729746666678,
+          0.3571188416666668,
+          0.5983333333333334,
+          1.0,
+          0.12166666666666667,
+          1.0,
+          0.7254680816666667,
+          0.8969120033333339
+        ],
+        "scale": [
+          0.816496580927726,
+          6.210332171685357,
+          1.888072674414381,
+          0.4902352043209018,
+          1.0,
+          0.32690042656578167,
+          1.0,
+          0.2083800547953543,
+          0.11171118914597007
+        ],
+        "coef": [
+          0.8304177550559024,
+          0.36282883780204866,
+          0.44590587181164093,
+          0.8536109480308364,
+          0.0,
+          -0.4284764156558696,
+          0.0,
+          -0.37013426995874166,
+          0.2676995214030233
+        ],
+        "intercept": 4.32856010450822,
+        "threshold": 0.5,
+        "l2": 1.0,
+        "train_rows": 600,
+        "train_positive": 556,
+        "iterations": 10,
+        "train_accuracy": 0.9317,
+        "train_positive_rate": 0.9267,
+        "policy": "append",
+        "label": "1 if no later hop of the training loop adds a gold passage"
+      },
+      "results": {
+        "oneshot-bm25": {
+          "n": 1000,
+          "metrics": {
+            "recall@2": {
+              "mean": 0.5625,
+              "ci_low": 0.544,
+              "ci_high": 0.5805
+            },
+            "recall@5": {
+              "mean": 0.702,
+              "ci_low": 0.6835,
+              "ci_high": 0.72
+            },
+            "recall@10": {
+              "mean": 0.838,
+              "ci_low": 0.823,
+              "ci_high": 0.8525
+            },
+            "em": {
+              "mean": 0.246,
+              "ci_low": 0.22,
+              "ci_high": 0.272
+            },
+            "f1": {
+              "mean": 0.349,
+              "ci_low": 0.3225,
+              "ci_high": 0.3768
+            },
+            "recall@pool": {
+              "mean": 0.838,
+              "ci_low": 0.823,
+              "ci_high": 0.8525
+            },
+            "complete@10": {
+              "mean": 0.686,
+              "ci_low": 0.658,
+              "ci_high": 0.715
+            }
+          },
+          "cost": {
+            "retrieval_calls_mean": 1.0,
+            "reader_passages_mean": 5.0,
+            "steps_mean": 1.0,
+            "pool_size_mean": 9.997,
+            "pool_tokens_mean": 1267.4
+          },
+          "stop_reasons": {
+            "step-budget": 1000
+          },
+          "vs_oneshot-hybrid": {
+            "recall@2": {
+              "diff": -0.1525,
+              "ci_low": -0.171,
+              "ci_high": -0.134,
+              "p_value": 0.0001
+            },
+            "recall@5": {
+              "diff": -0.147,
+              "ci_low": -0.1645,
+              "ci_high": -0.131,
+              "p_value": 0.0001
+            },
+            "recall@10": {
+              "diff": -0.0785,
+              "ci_low": -0.091,
+              "ci_high": -0.066,
+              "p_value": 0.0001
+            },
+            "em": {
+              "diff": -0.016,
+              "ci_low": -0.031,
+              "ci_high": -0.001,
+              "p_value": 0.05609
+            },
+            "f1": {
+              "diff": -0.0226,
+              "ci_low": -0.0392,
+              "ci_high": -0.0066,
+              "p_value": 0.0077
+            }
+          },
+          "description": "question as the only query, BM25",
+          "latency": {
+            "n": 30,
+            "p50_ms": 213.91,
+            "p95_ms": 469.65,
+            "order": "configurations interleaved per question"
+          },
+          "by_type": {
+            "bridge": {
+              "n": 792,
+              "recall@2": 0.5593,
+              "recall@5": 0.6749,
+              "recall@10": 0.8056,
+              "em": 0.2652,
+              "f1": 0.3743
+            },
+            "comparison": {
+              "n": 208,
+              "recall@2": 0.5745,
+              "recall@5": 0.8053,
+              "recall@10": 0.9615,
+              "em": 0.1731,
+              "f1": 0.2527
+            }
+          }
+        },
+        "oneshot-dense": {
+          "n": 1000,
+          "metrics": {
+            "recall@2": {
+              "mean": 0.7015,
+              "ci_low": 0.682,
+              "ci_high": 0.72
+            },
+            "recall@5": {
+              "mean": 0.834,
+              "ci_low": 0.8185,
+              "ci_high": 0.849
+            },
+            "recall@10": {
+              "mean": 0.8895,
+              "ci_low": 0.876,
+              "ci_high": 0.903
+            },
+            "em": {
+              "mean": 0.255,
+              "ci_low": 0.229,
+              "ci_high": 0.283
+            },
+            "f1": {
+              "mean": 0.3603,
+              "ci_low": 0.3341,
+              "ci_high": 0.3889
+            },
+            "recall@pool": {
+              "mean": 0.8895,
+              "ci_low": 0.876,
+              "ci_high": 0.903
+            },
+            "complete@10": {
+              "mean": 0.791,
+              "ci_low": 0.767,
+              "ci_high": 0.815
+            }
+          },
+          "cost": {
+            "retrieval_calls_mean": 1.0,
+            "reader_passages_mean": 5.0,
+            "steps_mean": 1.0,
+            "pool_size_mean": 9.988,
+            "pool_tokens_mean": 1217.6
+          },
+          "stop_reasons": {
+            "step-budget": 1000
+          },
+          "vs_oneshot-hybrid": {
+            "recall@2": {
+              "diff": -0.0135,
+              "ci_low": -0.0245,
+              "ci_high": -0.003,
+              "p_value": 0.0185
+            },
+            "recall@5": {
+              "diff": -0.015,
+              "ci_low": -0.0255,
+              "ci_high": -0.0055,
+              "p_value": 0.0038
+            },
+            "recall@10": {
+              "diff": -0.027,
+              "ci_low": -0.036,
+              "ci_high": -0.0185,
+              "p_value": 0.0001
+            },
+            "em": {
+              "diff": -0.007,
+              "ci_low": -0.018,
+              "ci_high": 0.004,
+              "p_value": 0.30897
+            },
+            "f1": {
+              "diff": -0.0113,
+              "ci_low": -0.0225,
+              "ci_high": 0.0001,
+              "p_value": 0.06359
+            }
+          },
+          "description": "question as the only query, bge-small",
+          "latency": {
+            "n": 30,
+            "p50_ms": 217.85,
+            "p95_ms": 426.79,
+            "order": "configurations interleaved per question"
+          },
+          "by_type": {
+            "bridge": {
+              "n": 792,
+              "recall@2": 0.6408,
+              "recall@5": 0.7923,
+              "recall@10": 0.8605,
+              "em": 0.2765,
+              "f1": 0.3885
+            },
+            "comparison": {
+              "n": 208,
+              "recall@2": 0.9327,
+              "recall@5": 0.9928,
+              "recall@10": 1.0,
+              "em": 0.1731,
+              "f1": 0.2527
+            }
+          }
+        },
+        "oneshot-hybrid": {
+          "n": 1000,
+          "metrics": {
+            "recall@2": {
+              "mean": 0.715,
+              "ci_low": 0.6975,
+              "ci_high": 0.733
+            },
+            "recall@5": {
+              "mean": 0.849,
+              "ci_low": 0.835,
+              "ci_high": 0.8635
+            },
+            "recall@10": {
+              "mean": 0.9165,
+              "ci_low": 0.905,
+              "ci_high": 0.928
+            },
+            "em": {
+              "mean": 0.262,
+              "ci_low": 0.235,
+              "ci_high": 0.291
+            },
+            "f1": {
+              "mean": 0.3716,
+              "ci_low": 0.3447,
+              "ci_high": 0.3999
+            },
+            "recall@pool": {
+              "mean": 0.9165,
+              "ci_low": 0.905,
+              "ci_high": 0.928
+            },
+            "complete@10": {
+              "mean": 0.836,
+              "ci_low": 0.813,
+              "ci_high": 0.859
+            }
+          },
+          "cost": {
+            "retrieval_calls_mean": 1.0,
+            "reader_passages_mean": 5.0,
+            "steps_mean": 1.0,
+            "pool_size_mean": 9.99,
+            "pool_tokens_mean": 1215.2
+          },
+          "stop_reasons": {
+            "step-budget": 1000
+          },
+          "description": "question as the only query, fused",
+          "latency": {
+            "n": 30,
+            "p50_ms": 222.17,
+            "p95_ms": 360.33,
+            "order": "configurations interleaved per question"
+          },
+          "by_type": {
+            "bridge": {
+              "n": 792,
+              "recall@2": 0.661,
+              "recall@5": 0.8125,
+              "recall@10": 0.8946,
+              "em": 0.2904,
+              "f1": 0.4076
+            },
+            "comparison": {
+              "n": 208,
+              "recall@2": 0.9207,
+              "recall@5": 0.988,
+              "recall@10": 1.0,
+              "em": 0.1538,
+              "f1": 0.2346
+            }
+          }
+        },
+        "loop2-title-feedback": {
+          "n": 1000,
+          "metrics": {
+            "recall@2": {
+              "mean": 0.4895,
+              "ci_low": 0.478,
+              "ci_high": 0.501
+            },
+            "recall@5": {
+              "mean": 0.83,
+              "ci_low": 0.814,
+              "ci_high": 0.8445
+            },
+            "recall@10": {
+              "mean": 0.9205,
+              "ci_low": 0.9095,
+              "ci_high": 0.932
+            },
+            "em": {
+              "mean": 0.267,
+              "ci_low": 0.24,
+              "ci_high": 0.295
+            },
+            "f1": {
+              "mean": 0.3777,
+              "ci_low": 0.3515,
+              "ci_high": 0.4059
+            },
+            "recall@pool": {
+              "mean": 0.9205,
+              "ci_low": 0.9095,
+              "ci_high": 0.932
+            },
+            "complete@10": {
+              "mean": 0.844,
+              "ci_low": 0.822,
+              "ci_high": 0.867
+            }
+          },
+          "cost": {
+            "retrieval_calls_mean": 2.0,
+            "reader_passages_mean": 5.0,
+            "steps_mean": 2.0,
+            "pool_size_mean": 9.991,
+            "pool_tokens_mean": 1217.2
+          },
+          "stop_reasons": {
+            "step-budget": 1000
+          },
+          "vs_oneshot-hybrid": {
+            "recall@2": {
+              "diff": -0.2255,
+              "ci_low": -0.244,
+              "ci_high": -0.2065,
+              "p_value": 0.0001
+            },
+            "recall@5": {
+              "diff": -0.019,
+              "ci_low": -0.034,
+              "ci_high": -0.005,
+              "p_value": 0.0123
+            },
+            "recall@10": {
+              "diff": 0.004,
+              "ci_low": -0.0035,
+              "ci_high": 0.011,
+              "p_value": 0.33927
+            },
+            "em": {
+              "diff": 0.005,
+              "ci_low": -0.012,
+              "ci_high": 0.021,
+              "p_value": 0.64414
+            },
+            "f1": {
+              "diff": 0.0062,
+              "ci_low": -0.0118,
+              "ci_high": 0.0229,
+              "p_value": 0.48825
+            }
+          },
+          "description": "2 steps, next query = question + best new title; no reader",
+          "latency": {
+            "n": 30,
+            "p50_ms": 230.63,
+            "p95_ms": 441.0,
+            "order": "configurations interleaved per question"
+          },
+          "by_type": {
+            "bridge": {
+              "n": 792,
+              "recall@2": 0.4899,
+              "recall@5": 0.7929,
+              "recall@10": 0.9003,
+              "em": 0.2917,
+              "f1": 0.4088
+            },
+            "comparison": {
+              "n": 208,
+              "recall@2": 0.488,
+              "recall@5": 0.9712,
+              "recall@10": 0.9976,
+              "em": 0.1731,
+              "f1": 0.2594
+            }
+          }
+        },
+        "loop2-extractive": {
+          "n": 1000,
+          "metrics": {
+            "recall@2": {
+              "mean": 0.528,
+              "ci_low": 0.5155,
+              "ci_high": 0.5415
+            },
+            "recall@5": {
+              "mean": 0.8655,
+              "ci_low": 0.8505,
+              "ci_high": 0.8805
+            },
+            "recall@10": {
+              "mean": 0.9475,
+              "ci_low": 0.9375,
+              "ci_high": 0.9575
+            },
+            "em": {
+              "mean": 0.263,
+              "ci_low": 0.236,
+              "ci_high": 0.291
+            },
+            "f1": {
+              "mean": 0.3787,
+              "ci_low": 0.3521,
+              "ci_high": 0.4079
+            },
+            "recall@pool": {
+              "mean": 0.9475,
+              "ci_low": 0.9375,
+              "ci_high": 0.9575
+            },
+            "complete@10": {
+              "mean": 0.899,
+              "ci_low": 0.88,
+              "ci_high": 0.918
+            }
+          },
+          "cost": {
+            "retrieval_calls_mean": 2.0,
+            "reader_passages_mean": 5.0,
+            "steps_mean": 2.0,
+            "pool_size_mean": 9.988,
+            "pool_tokens_mean": 1227.0
+          },
+          "stop_reasons": {
+            "step-budget": 1000
+          },
+          "vs_oneshot-hybrid": {
+            "recall@2": {
+              "diff": -0.187,
+              "ci_low": -0.2085,
+              "ci_high": -0.166,
+              "p_value": 0.0001
+            },
+            "recall@5": {
+              "diff": 0.0165,
+              "ci_low": 0.0005,
+              "ci_high": 0.0325,
+              "p_value": 0.06159
+            },
+            "recall@10": {
+              "diff": 0.031,
+              "ci_low": 0.0225,
+              "ci_high": 0.04,
+              "p_value": 0.0001
+            },
+            "em": {
+              "diff": 0.001,
+              "ci_low": -0.016,
+              "ci_high": 0.017,
+              "p_value": 1.0
+            },
+            "f1": {
+              "diff": 0.0071,
+              "ci_low": -0.0099,
+              "ci_high": 0.0244,
+              "p_value": 0.42356
+            }
+          },
+          "description": "2 fixed steps, reader bridge",
+          "latency": {
+            "n": 30,
+            "p50_ms": 203.64,
+            "p95_ms": 383.7,
+            "order": "configurations interleaved per question"
+          },
+          "by_type": {
+            "bridge": {
+              "n": 792,
+              "recall@2": 0.5385,
+              "recall@5": 0.8371,
+              "recall@10": 0.9343,
+              "em": 0.2879,
+              "f1": 0.4109
+            },
+            "comparison": {
+              "n": 208,
+              "recall@2": 0.488,
+              "recall@5": 0.9736,
+              "recall@10": 0.9976,
+              "em": 0.1683,
+              "f1": 0.2559
+            }
+          }
+        },
+        "loop3-extractive": {
+          "n": 1000,
+          "metrics": {
+            "recall@2": {
+              "mean": 0.528,
+              "ci_low": 0.5155,
+              "ci_high": 0.5415
+            },
+            "recall@5": {
+              "mean": 0.799,
+              "ci_low": 0.782,
+              "ci_high": 0.816
+            },
+            "recall@10": {
+              "mean": 0.922,
+              "ci_low": 0.9105,
+              "ci_high": 0.9335
+            },
+            "em": {
+              "mean": 0.246,
+              "ci_low": 0.22,
+              "ci_high": 0.275
+            },
+            "f1": {
+              "mean": 0.3594,
+              "ci_low": 0.3333,
+              "ci_high": 0.3893
+            },
+            "recall@pool": {
+              "mean": 0.9605,
+              "ci_low": 0.952,
+              "ci_high": 0.9685
+            },
+            "complete@10": {
+              "mean": 0.849,
+              "ci_low": 0.827,
+              "ci_high": 0.871
+            }
+          },
+          "cost": {
+            "retrieval_calls_mean": 3.0,
+            "reader_passages_mean": 7.0,
+            "steps_mean": 3.0,
+            "pool_size_mean": 14.973,
+            "pool_tokens_mean": 1892.0
+          },
+          "stop_reasons": {
+            "step-budget": 1000
+          },
+          "vs_oneshot-hybrid": {
+            "recall@2": {
+              "diff": -0.187,
+              "ci_low": -0.2085,
+              "ci_high": -0.166,
+              "p_value": 0.0001
+            },
+            "recall@5": {
+              "diff": -0.05,
+              "ci_low": -0.0695,
+              "ci_high": -0.0305,
+              "p_value": 0.0001
+            },
+            "recall@10": {
+              "diff": 0.0055,
+              "ci_low": -0.006,
+              "ci_high": 0.0175,
+              "p_value": 0.40676
+            },
+            "em": {
+              "diff": -0.016,
+              "ci_low": -0.037,
+              "ci_high": 0.004,
+              "p_value": 0.13029
+            },
+            "f1": {
+              "diff": -0.0122,
+              "ci_low": -0.033,
+              "ci_high": 0.0077,
+              "p_value": 0.23888
+            }
+          },
+          "description": "3 fixed steps, reader bridge",
+          "latency": {
+            "n": 30,
+            "p50_ms": 296.29,
+            "p95_ms": 537.3,
+            "order": "configurations interleaved per question"
+          },
+          "by_type": {
+            "bridge": {
+              "n": 792,
+              "recall@2": 0.5385,
+              "recall@5": 0.7645,
+              "recall@10": 0.9034,
+              "em": 0.2652,
+              "f1": 0.3865
+            },
+            "comparison": {
+              "n": 208,
+              "recall@2": 0.488,
+              "recall@5": 0.9303,
+              "recall@10": 0.9928,
+              "em": 0.1731,
+              "f1": 0.2561
+            }
+          }
+        },
+        "ircot-extractive": {
+          "n": 1000,
+          "metrics": {
+            "recall@2": {
+              "mean": 0.7155,
+              "ci_low": 0.697,
+              "ci_high": 0.7335
+            },
+            "recall@5": {
+              "mean": 0.8555,
+              "ci_low": 0.8415,
+              "ci_high": 0.8705
+            },
+            "recall@10": {
+              "mean": 0.8595,
+              "ci_low": 0.845,
+              "ci_high": 0.874
+            },
+            "em": {
+              "mean": 0.261,
+              "ci_low": 0.234,
+              "ci_high": 0.29
+            },
+            "f1": {
+              "mean": 0.3725,
+              "ci_low": 0.3451,
+              "ci_high": 0.401
+            },
+            "recall@pool": {
+              "mean": 0.8595,
+              "ci_low": 0.845,
+              "ci_high": 0.874
+            },
+            "complete@10": {
+              "mean": 0.728,
+              "ci_low": 0.702,
+              "ci_high": 0.756
+            }
+          },
+          "cost": {
+            "retrieval_calls_mean": 1.05,
+            "reader_passages_mean": 5.048,
+            "steps_mean": 1.05,
+            "pool_size_mean": 5.246,
+            "pool_tokens_mean": 601.5
+          },
+          "stop_reasons": {
+            "controller:learned": 1000
+          },
+          "vs_oneshot-hybrid": {
+            "recall@2": {
+              "diff": 0.0005,
+              "ci_low": -0.005,
+              "ci_high": 0.0065,
+              "p_value": 1.0
+            },
+            "recall@5": {
+              "diff": 0.0065,
+              "ci_low": 0.0015,
+              "ci_high": 0.012,
+              "p_value": 0.0206
+            },
+            "recall@10": {
+              "diff": -0.057,
+              "ci_low": -0.068,
+              "ci_high": -0.046,
+              "p_value": 0.0001
+            },
+            "em": {
+              "diff": -0.001,
+              "ci_low": -0.008,
+              "ci_high": 0.006,
+              "p_value": 1.0
+            },
+            "f1": {
+              "diff": 0.0009,
+              "ci_low": -0.0059,
+              "ci_high": 0.0078,
+              "p_value": 0.81362
+            }
+          },
+          "description": "up to 4 steps, reader bridge, learned stop",
+          "latency": {
+            "n": 30,
+            "p50_ms": 169.56,
+            "p95_ms": 393.75,
+            "order": "configurations interleaved per question"
+          },
+          "by_type": {
+            "bridge": {
+              "n": 792,
+              "recall@2": 0.6648,
+              "recall@5": 0.8201,
+              "recall@10": 0.8251,
+              "em": 0.2904,
+              "f1": 0.4096
+            },
+            "comparison": {
+              "n": 208,
+              "recall@2": 0.9087,
+              "recall@5": 0.9904,
+              "recall@10": 0.9904,
+              "em": 0.149,
+              "f1": 0.2311
+            }
+          }
+        }
+      },
+      "reader_passages_computed": 11370,
+      "timings_s": {
+        "index_s": 415.6,
+        "train_s": 169.1,
+        "eval_s": 515.6,
+        "latency_s": 51.7
+      }
+    }
+  },
+  "not_run": [
+    {
+      "config": "ircot-cot-llm",
+      "status": "not run",
+      "reason": "the chain-of-thought reasoner needs an OpenAI-compatible LLM endpoint; it is implemented (ircot.reasoners.ChainOfThoughtReasoner) but no LLM was run for these results"
+    }
+  ],
+  "wall_time_s": 2715.3
+}
