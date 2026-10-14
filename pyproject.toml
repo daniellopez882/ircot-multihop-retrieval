@@ -1,0 +1,63 @@
+[project]
+name = "ircot-multihop-retrieval"
+version = "0.1.0"
+description = "IRCoT-style interleaved retrieve, read, re-query loop with a pluggable reasoner and a learned stopping policy, measured against one-shot retrieval on MuSiQue and HotpotQA."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Daniel Lopez" }]
+requires-python = ">=3.12,<3.13"
+keywords = ["ircot", "multi-hop-qa", "iterative-retrieval", "bm25", "musique", "hotpotqa", "onnx"]
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Typing :: Typed",
+]
+dependencies = [
+    "huggingface-hub>=0.25",
+    "numpy>=2.0",
+    "onnx>=1.17",
+    "onnxruntime>=1.20",
+    "pyarrow>=17",
+    "safetensors>=0.4.5",
+    "scipy>=1.14",
+    "tokenizers>=0.20",
+    "typer>=0.12",
+]
+
+[project.scripts]
+ircot = "ircot.cli:app"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.100",
+    "ir-measures>=0.3.6",
+    "pytest>=8.2",
+    "ruff>=0.6",
+    "scikit-learn>=1.5",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ircot"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests", "bench"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "N", "PT", "NPY", "PERF", "C4", "PIE", "RET"]
+ignore = ["N803", "N806", "RET504", "SIM905"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -m 'not integration'"
+markers = [
+    "integration: needs the datasets, models or official evaluator from `ircot fetch` (run with -m integration)",
+]

@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Tooling
+.venv/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+.coverage
+
+# Datasets, models, embeddings and traces live in IRCOT_DATA_DIR, never in the repository
+data/
+models/
+runs/
+*.onnx
+*.npy
+*.parquet
+*.jsonl
+*.safetensors
+bench/results/smoke-*.json
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
