@@ -17,7 +17,7 @@ import json
 import time
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
@@ -48,7 +48,7 @@ from ircot.reasoners import (
     TitleFeedbackReasoner,
     best_answer,
 )
-from ircot.retrieval import BM25, Dense, Hybrid, Retriever
+from ircot.retrieval import BM25, Dense, Hybrid, Retriever, top_k
 from ircot.stats import bootstrap_ci, paired_permutation_test
 
 Log = Callable[[str], None]
@@ -61,8 +61,8 @@ class BenchConfig:
     profile: str = "models"
     datasets: tuple[str, ...] = ("musique", "hotpotqa")
     n_eval: int = 1000
-    n_train: int = 300
-    latency_n: int = 50
+    n_train: int = 200
+    latency_n: int = 30
     seed: int = 2026
     k_oneshot: int = 10
     k_hop: int = 5
@@ -73,7 +73,8 @@ class BenchConfig:
     title_bonus: float = 4.0
     bm25_k1: float = 0.9
     bm25_b: float = 0.4
-    hybrid_alpha: float = 0.5
+    # Dense weight candidates for the hybrid, tried on the training sample; the first wins ties.
+    hybrid_alphas: tuple[float, ...] = (0.5, 0.25, 0.75)
     hybrid_depth: int = 100
     controller_l2: float = 1.0
     controller_threshold: float = 0.5
@@ -247,7 +248,7 @@ class Workspace:
         bm25 = BM25(passages, cfg.bm25_k1, cfg.bm25_b)
         embeddings = cached_passage_embeddings(models.encoder, passages, models.cache_root, log)
         dense = Dense(embeddings, models.encoder)
-        hybrid = Hybrid(bm25, dense, cfg.hybrid_alpha, cfg.hybrid_depth)
+        hybrid = Hybrid(bm25, dense, cfg.hybrid_alphas[0], cfg.hybrid_depth)
         return cls(
             questions,
             corpus,
@@ -255,6 +256,21 @@ class Workspace:
             {"bm25": bm25, "dense": dense, "hybrid": hybrid},
             TitleIndex(corpus.titles),
         )
+
+    def use_alpha(self, alpha: float, depth: int) -> None:
+        bm25, dense = self.retrievers["bm25"], self.retrievers["dense"]
+        assert isinstance(bm25, BM25)
+        assert isinstance(dense, Dense)
+        self.retrievers["hybrid"] = Hybrid(bm25, dense, alpha, depth)
+
+    def reader_cache(self, models: Models) -> ReaderCache:
+        """A reader cache for this corpus, saved next to the embeddings when there is a cache
+        directory, so an interrupted benchmark does not re-read passages it already read."""
+        path = None
+        if models.cache_root is not None:
+            name = f"reader-{models.reader.name}-{self.corpus.digest()[:20]}.json"
+            path = models.cache_root / name
+        return ReaderCache(models.reader, self.corpus, path=path)
 
 
 def _reasoner(
@@ -364,50 +380,77 @@ def controller_rows(
 
 
 @dataclass
-class DatasetOutcome:
-    summary: dict[str, object]
-    per_question: dict[str, list[dict[str, object]]] = field(default_factory=dict)
+class TrainOutcome:
+    alpha: float
+    policy: QueryPolicy
+    controller: StopController
+    report: dict[str, object]
 
 
-def train_stage(
-    ws: Workspace, models: Models, cfg: BenchConfig, log: Log
-) -> tuple[QueryPolicy, StopController, dict[str, object], dict[str, object]]:
-    cache = ReaderCache(models.reader, ws.corpus)
+def _mean(values: Iterable[float]) -> float:
+    return round(float(np.mean(list(values))), 4)
+
+
+def train_stage(ws: Workspace, models: Models, cfg: BenchConfig, log: Log) -> TrainOutcome:
+    """Every choice the evaluation depends on, made on the training sample only."""
+    gold = ws.corpus.gold
+    alpha_scores: dict[str, float] = {}
+    for alpha in cfg.hybrid_alphas:
+        ws.use_alpha(alpha, cfg.hybrid_depth)
+        hybrid = ws.retrievers["hybrid"]
+        alpha_scores[str(alpha)] = _mean(
+            recall_at_k([h.doc for h in top_k(hybrid.scores(q.text), 5)], gold[q.qid], 5)
+            for q in ws.questions
+        )
+    order = list(cfg.hybrid_alphas)
+    alpha = max(order, key=lambda a: (alpha_scores[str(a)], -order.index(a)))
+    ws.use_alpha(alpha, cfg.hybrid_depth)
+    log(f"  hybrid dense weight {alpha} (one-shot R@5 by weight: {alpha_scores})")
+
+    cache = ws.reader_cache(models)
     spec = ConfigSpec("train-probe", "hybrid", cfg.ircot_max_steps, "extractive")
-    selection: dict[str, object] = {}
+    selection: dict[str, dict[str, float]] = {}
     runs: dict[str, list[LoopResult]] = {}
     for name, policy in POLICIES.items():
         loop = build_loop(spec, ws, cache, policy, None, cfg)
         runs[name] = [loop.run(q) for q in ws.questions]
-        pool_recall = [
-            recall_at_k(r.ranking, ws.corpus.gold[r.qid], len(r.ranking)) for r in runs[name]
-        ]
-        r5 = [recall_at_k(r.ranking, ws.corpus.gold[r.qid], 5) for r in runs[name]]
+        cache.save()
         selection[name] = {
-            "pool_recall": round(float(np.mean(pool_recall)), 4),
-            "recall@5": round(float(np.mean(r5)), 4),
-            "mean_pool_size": round(float(np.mean([len(r.ranking) for r in runs[name]])), 2),
+            "pool_recall": _mean(
+                recall_at_k(r.ranking, gold[r.qid], len(r.ranking)) for r in runs[name]
+            ),
+            "recall@5": _mean(recall_at_k(r.ranking, gold[r.qid], 5) for r in runs[name]),
+            "mean_pool_size": _mean(len(r.ranking) for r in runs[name]),
         }
         log(f"  policy {name:<9} pool recall {selection[name]['pool_recall']:.3f}")
-    chosen = max(POLICIES, key=lambda n: (selection[n]["pool_recall"], -list(POLICIES).index(n)))  # type: ignore[index]
-    selection["selected"] = chosen
-    selection["selected_by"] = (
-        f"highest pool recall of the {cfg.ircot_max_steps}-step loop on the training sample"
-    )
-    X, y = controller_rows(runs[chosen], ws.corpus.gold)
+    names = list(POLICIES)
+    chosen = max(names, key=lambda n: (selection[n]["pool_recall"], -names.index(n)))
+    X, y = controller_rows(runs[chosen], gold)
     controller = StopController.fit(X, y, l2=cfg.controller_l2, threshold=cfg.controller_threshold)
     predicted = np.array([controller.probability(row) >= controller.threshold for row in X])
-    report = controller.to_json() | {
-        "train_accuracy": round(float(np.mean(predicted == y.astype(bool))), 4),
-        "train_positive_rate": round(float(y.mean()), 4),
-        "policy": chosen,
-        "label": "1 if no later hop of the training loop adds a gold passage",
+    accuracy = _mean((predicted == y.astype(bool)).astype(float))
+    log(f"  controller rows {len(y)}, positive rate {y.mean():.3f}, train accuracy {accuracy}")
+    report: dict[str, object] = {
+        "alpha_selection": {
+            "recall@5_by_alpha": alpha_scores,
+            "selected": alpha,
+            "selected_by": "highest one-shot hybrid Recall@5 on the training sample",
+        },
+        "policy_selection": {
+            **selection,
+            "selected": chosen,
+            "selected_by": f"highest pool recall of the {cfg.ircot_max_steps}-step loop "
+            "on the training sample",
+        },
+        "stop_controller": {
+            **controller.to_json(),
+            "train_accuracy": accuracy,
+            "train_positive_rate": _mean(y.astype(float)),
+            "policy": chosen,
+            "label": "1 if no later hop of the training loop adds a gold passage",
+        },
     }
-    log(
-        f"  controller rows {len(y)}, positive rate {y.mean():.3f}, "
-        f"train accuracy {report['train_accuracy']}"
-    )
-    return POLICIES[chosen], controller, selection, report
+    return TrainOutcome(alpha, POLICIES[chosen], controller, report)
 
 
 def summarise(
@@ -470,8 +513,7 @@ def latency_stage(
     ws: Workspace,
     specs: Sequence[ConfigSpec],
     models: Models,
-    policy: QueryPolicy,
-    controller: StopController,
+    trained: TrainOutcome,
     cfg: BenchConfig,
 ) -> dict[str, dict[str, object]]:
     """Wall time per question with a cold reader cache: retrieval, reasoning and answer reading."""
@@ -481,7 +523,7 @@ def latency_stage(
         times: list[float] = []
         for q in questions:
             cache = ReaderCache(models.reader, ws.corpus)
-            loop = build_loop(spec, ws, cache, policy, controller, cfg)
+            loop = build_loop(spec, ws, cache, trained.policy, trained.controller, cfg)
             t0 = time.perf_counter()
             result = loop.run(q)
             best_answer(cache, q.text, result.ranking[: cfg.answer_depth])
@@ -496,7 +538,7 @@ def latency_stage(
 
 def run_dataset(
     dataset: str, models: Models, cfg: BenchConfig, log: Log, traces: Path | None
-) -> DatasetOutcome:
+) -> dict[str, object]:
     questions = load_questions(dataset)
     eval_q, train_q = split_sample(questions, cfg.n_eval, cfg.n_train, cfg.seed)
     timings: dict[str, float] = {}
@@ -508,16 +550,17 @@ def run_dataset(
     timings["index_s"] = round(time.perf_counter() - t0, 1)
 
     t0 = time.perf_counter()
-    log(f"[{dataset}] selecting the query policy and fitting the stop controller")
-    policy, controller, selection, controller_report = train_stage(train_ws, models, cfg, log)
+    log(f"[{dataset}] choosing the hybrid weight and query policy, fitting the stop controller")
+    trained = train_stage(train_ws, models, cfg, log)
+    eval_ws.use_alpha(trained.alpha, cfg.hybrid_depth)
     timings["train_s"] = round(time.perf_counter() - t0, 1)
 
     specs = [s for s in CONFIGS if not s.only or dataset in s.only]
-    cache = ReaderCache(models.reader, eval_ws.corpus)
+    cache = eval_ws.reader_cache(models)
     per_question: dict[str, list[dict[str, object]]] = {}
     t0 = time.perf_counter()
     for spec in specs:
-        loop = build_loop(spec, eval_ws, cache, policy, controller, cfg)
+        loop = build_loop(spec, eval_ws, cache, trained.policy, trained.controller, cfg)
         rows: list[dict[str, object]] = []
         sink = None
         if traces is not None:
@@ -534,6 +577,7 @@ def run_dataset(
             if sink is not None:
                 sink.close()
         per_question[spec.name] = rows
+        cache.save()
         log(
             f"[{dataset}] {spec.name:<21} R@5 {np.mean([r['recall@5'] for r in rows]):.3f}  "
             f"F1 {np.mean([r['f1'] for r in rows]):.3f}  (reader passages so far {cache.computed})"
@@ -541,9 +585,7 @@ def run_dataset(
     timings["eval_s"] = round(time.perf_counter() - t0, 1)
 
     t0 = time.perf_counter()
-    latency = (
-        latency_stage(eval_ws, specs, models, policy, controller, cfg) if cfg.latency_n > 0 else {}
-    )
+    latency = latency_stage(eval_ws, specs, models, trained, cfg) if cfg.latency_n > 0 else {}
     timings["latency_s"] = round(time.perf_counter() - t0, 1)
 
     reference = per_question[REFERENCE]
@@ -572,13 +614,12 @@ def run_dataset(
             "corpus_passages": len(train_ws.corpus),
             "corpus_sha256": train_ws.corpus.digest(),
         },
-        "policy_selection": selection,
-        "stop_controller": controller_report,
+        **trained.report,
         "results": results,
         "reader_passages_computed": cache.computed,
         "timings_s": timings,
     }
-    return DatasetOutcome(summary, per_question)
+    return summary
 
 
 def run_benchmark(
@@ -597,11 +638,9 @@ def run_benchmark(
 
         checksums = dataset_checksums()
     for dataset in cfg.datasets:
-        outcome = run_dataset(dataset, models, cfg, log, traces)
-        datasets[dataset] = (
-            checksums.get(dataset, {"source": "ircot.offline.synthetic_world(seed=7)"})
-            | outcome.summary
-        )
+        summary = run_dataset(dataset, models, cfg, log, traces)
+        source = checksums.get(dataset, {"source": "ircot.offline.synthetic_world(seed=7)"})
+        datasets[dataset] = source | summary
 
     payload: dict[str, object] = {
         "benchmark": "ircot-multihop-retrieval",

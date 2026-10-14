@@ -15,8 +15,6 @@ from pathlib import Path
 
 import numpy as np
 
-from ircot.text import normalize_answer
-
 
 @dataclass(frozen=True)
 class Paragraph:
@@ -165,9 +163,3 @@ class Corpus:
                     support.append(doc)
             gold[q.qid] = tuple(support)
         return cls(titles, texts, gold)
-
-
-def answer_in_passage(answer: str, passage: str) -> bool:
-    """Whether a normalised answer string occurs in a normalised passage (token boundaries)."""
-    needle = normalize_answer(answer)
-    return bool(needle) and f" {needle} " in f" {normalize_answer(passage)} "

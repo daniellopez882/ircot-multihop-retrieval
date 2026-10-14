@@ -119,10 +119,15 @@ def ask(
     n: Annotated[int, typer.Option(help="size of the sample whose corpus is searched")] = 1000,
     seed: Annotated[int, typer.Option(help="sampling seed (match the benchmark's)")] = 2026,
     results: Annotated[
-        Path | None, typer.Option(help="results JSON to take the policy and stop controller from")
+        Path | None,
+        typer.Option(help="results JSON to take the hybrid weight, policy and controller from"),
     ] = None,
 ) -> None:
-    """Run the extractive IRCoT loop on one question and print every hop."""
+    """Run the extractive loop on one question and print every hop.
+
+    Without ``--results`` this is the fixed 3-step loop with the append policy; with it, the
+    learned-stop loop using exactly the choices the benchmark made on its training sample.
+    """
     from ircot.controller import StopController
     from ircot.data import split_sample
     from ircot.harness import (
@@ -134,7 +139,7 @@ def ask(
         load_questions,
     )
     from ircot.policies import POLICIES
-    from ircot.reasoners import ReaderCache, best_answer
+    from ircot.reasoners import best_answer
 
     cfg = BenchConfig(datasets=(dataset,), n_eval=n, n_train=0, seed=seed)
     models = load_models("models")
@@ -144,17 +149,15 @@ def ask(
     policy, controller, spec_name = POLICIES["append"], None, "loop3-extractive"
     if results is not None:
         info = json.loads(results.read_text(encoding="utf-8"))["datasets"][dataset]
+        ws.use_alpha(info["alpha_selection"]["selected"], cfg.hybrid_depth)
         policy = POLICIES[info["policy_selection"]["selected"]]
+        fields = StopController.__dataclass_fields__
         controller = StopController.from_json(
-            {
-                k: v
-                for k, v in info["stop_controller"].items()
-                if k in StopController.__dataclass_fields__
-            }
+            {k: v for k, v in info["stop_controller"].items() if k in fields}
         )
         spec_name = "ircot-extractive"
     spec = next(s for s in CONFIGS if s.name == spec_name)
-    cache = ReaderCache(models.reader, ws.corpus)
+    cache = ws.reader_cache(models)
     result = build_loop(spec, ws, cache, policy, controller, cfg).run(q)
     answer, _ = best_answer(cache, q.text, result.ranking[: cfg.answer_depth])
     gold = set(ws.corpus.gold[q.qid])
@@ -166,10 +169,8 @@ def ask(
             _say(f"   {mark} [{doc}] {ws.corpus.titles[doc]}")
         if h.bridge:
             _say(f"   bridge: {h.bridge} (title match: {h.bridge_title_match})")
-        _say(
-            f"   decision: {h.decision}"
-            + (f" (p_stop={h.stop_probability})" if h.stop_probability is not None else "")
-        )
+        p_stop = f" (p_stop={h.stop_probability})" if h.stop_probability is not None else ""
+        _say(f"   decision: {h.decision}{p_stop}")
     _say(f"\nanswer: {answer}   (* = gold supporting passage, policy {policy.name}, {spec.name})")
 
 
@@ -187,29 +188,25 @@ def demo() -> None:
         train_stage,
     )
     from ircot.metrics import recall_at_k
-    from ircot.reasoners import ReaderCache
 
     cfg = BenchConfig(profile="offline", datasets=("synthetic",), n_eval=30, n_train=30)
     models = load_models("offline")
     eval_q, train_q = split_sample(load_questions("synthetic"), 30, 30, cfg.seed)
-    policy, controller, _, report = train_stage(
-        Workspace.build(train_q, models, cfg, _say), models, cfg, _say
-    )
+    trained = train_stage(Workspace.build(train_q, models, cfg, _say), models, cfg, _say)
     ws = Workspace.build(eval_q, models, cfg, _say)
-    cache = ReaderCache(models.reader, ws.corpus)
+    ws.use_alpha(trained.alpha, cfg.hybrid_depth)
+    cache = ws.reader_cache(models)
+    specs = {s.name: s for s in CONFIGS}
     for spec in CONFIGS:
-        loop = build_loop(spec, ws, cache, policy, controller, cfg)
+        loop = build_loop(spec, ws, cache, trained.policy, trained.controller, cfg)
         recall = [recall_at_k(loop.run(q).ranking, ws.corpus.gold[q.qid], 5) for q in eval_q]
         _say(f"{spec.name:<22} R@5 {sum(recall) / len(recall):.3f}")
     q = next(x for x in eval_q if x.hops >= 3)
-    loop = build_loop(
-        next(s for s in CONFIGS if s.name == "ircot-extractive"), ws, cache, policy, controller, cfg
-    )
-    result = loop.run(q)
+    loop = build_loop(specs["ircot-extractive"], ws, cache, trained.policy, trained.controller, cfg)
     _say(f"\n{q.text}")
-    for h in result.hops:
+    for h in loop.run(q).hops:
         _say(f"  hop {h.hop}: {h.query!r} -> bridge {h.bridge!r}, {h.decision}")
-    _say(f"stop controller: {report['train_rows']} rows, policy {report['policy']}")
+    _say(f"stop controller: {trained.controller.train_rows} rows, policy {trained.policy.name}")
     _say("demo ok (offline stand-ins on a synthetic world; not model results)")
 
 

@@ -149,6 +149,9 @@ EVALUATOR_FILES = (
         "metrics/metric.py", 628, "c858d1bfda2f0b005065e87a402cd2f82154eb7eed5916845ae130759cc3a299"
     ),
     Pin(
+        "metrics/group.py", 1152, "b7bff5d19b426a353e50ad07db125fdb6fdd2660a229e1b11752b63e4ebd9087"
+    ),
+    Pin(
         "metrics/support.py",
         2315,
         "ac16c0daf458a6a4d6db97682c2340fe5b5936a947bf32c04dc3bf16406077c6",
@@ -300,12 +303,18 @@ def _extract_member_by_range(source: ZipMemberSource, dest: Path, log: Log) -> b
 def _extract_member_from_full_archive(source: ZipMemberSource, dest: Path, log: Log) -> None:
     with tempfile.TemporaryDirectory(dir=dest.parent) as scratch:
         archive = Path(scratch) / "archive.zip"
+        member = Path(scratch) / "member"
         log(f"download  full archive ({source.archive_size / 1e6:.0f} MB), ranges unsupported")
         with archive.open("wb") as out, _open(source.url) as resp:
             shutil.copyfileobj(resp, out, length=CHUNK)
-        with zipfile.ZipFile(archive) as zf, zf.open(source.member) as src, dest.open("wb") as out:
+        with (
+            zipfile.ZipFile(archive) as zf,
+            zf.open(source.member) as src,
+            member.open("wb") as out,
+        ):
             shutil.copyfileobj(src, out, length=CHUNK)
-    verify(dest, source.pin)
+        verify(member, source.pin)
+        member.replace(dest)
 
 
 def musique_path() -> Path:

@@ -16,9 +16,11 @@ separates the value of *iterating* from the value of *reading*:
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Protocol
 
 from ircot.bridge import Bridge, Candidate, TitleIndex, select_bridge
@@ -57,26 +59,40 @@ class ReaderCache:
     Within one question this is what any implementation would do (never read a passage twice).
     The benchmark also shares one cache across configurations so identical (question, passage)
     pairs are computed once; latency is measured separately with a fresh cache per question.
+    With ``path`` set, the cache is loaded from and saved to a JSON file.
     """
 
-    def __init__(self, reader: Reader, corpus: Corpus, top_n: int = 3) -> None:
-        self.reader, self.corpus, self.top_n = reader, corpus, top_n
+    def __init__(
+        self, reader: Reader, corpus: Corpus, top_n: int = 3, path: Path | None = None
+    ) -> None:
+        self.reader, self.corpus, self.top_n, self.path = reader, corpus, top_n, path
         self._spans: dict[tuple[str, int], list[Span]] = {}
         self.computed = 0
+        if path is not None and path.exists():
+            for question, doc, spans in json.loads(path.read_text(encoding="utf-8")):
+                self._spans[(question, doc)] = [Span(*s) for s in spans]
 
     def spans(self, question: str, docs: Sequence[int]) -> list[list[Span]]:
         missing = [d for d in dict.fromkeys(docs) if (question, d) not in self._spans]
         if missing:
             texts = [self.corpus.texts[d] for d in missing]
-            for doc, spans in zip(
-                missing, self.reader.read(question, texts, self.top_n), strict=True
-            ):
+            read = self.reader.read(question, texts, self.top_n)
+            for doc, spans in zip(missing, read, strict=True):
                 self._spans[(question, doc)] = spans
             self.computed += len(missing)
         return [self._spans[(question, d)] for d in docs]
 
-    def clear(self) -> None:
-        self._spans.clear()
+    def save(self) -> None:
+        if self.path is None:
+            return
+        rows = [
+            [q, d, [[s.text, s.start, s.end, s.score, s.null_score] for s in spans]]
+            for (q, d), spans in self._spans.items()
+        ]
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(rows, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(self.path)
 
 
 def best_answer(cache: ReaderCache, question: str, docs: Sequence[int]) -> tuple[str, float]:
