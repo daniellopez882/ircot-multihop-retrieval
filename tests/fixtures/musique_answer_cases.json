@@ -1,0 +1,211 @@
+{
+  "source": "https://raw.githubusercontent.com/StonyBrookNLP/musique/922ac98f19a201998dbdae6d7f2887a5258dbdeb/metrics/answer.py",
+  "sha256": "10368f619b4d5ef5d83748c05a96c0afd332a14ab5c010740c98d58dfaefe974",
+  "recorded_with": "bench/record_metric_cases.py",
+  "cases": [
+    {
+      "prediction": "Miquette Giraudy",
+      "golds": [
+        "Miquette Giraudy"
+      ],
+      "em": 1.0,
+      "f1": 1.0
+    },
+    {
+      "prediction": "miquette giraudy.",
+      "golds": [
+        "Miquette Giraudy"
+      ],
+      "em": 1.0,
+      "f1": 1.0
+    },
+    {
+      "prediction": "The Beatles",
+      "golds": [
+        "Beatles"
+      ],
+      "em": 1.0,
+      "f1": 1.0
+    },
+    {
+      "prediction": "a Beatles song",
+      "golds": [
+        "The Beatles"
+      ],
+      "em": 0.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "prediction": "",
+      "golds": [
+        "Paris"
+      ],
+      "em": 0.0,
+      "f1": 0.0
+    },
+    {
+      "prediction": "Paris",
+      "golds": [
+        ""
+      ],
+      "em": 0.0,
+      "f1": 0.0
+    },
+    {
+      "prediction": "",
+      "golds": [
+        ""
+      ],
+      "em": 1.0,
+      "f1": 1.0
+    },
+    {
+      "prediction": "the",
+      "golds": [
+        "a"
+      ],
+      "em": 1.0,
+      "f1": 1.0
+    },
+    {
+      "prediction": "Paris, France",
+      "golds": [
+        "Paris"
+      ],
+      "em": 0.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "prediction": "France Paris",
+      "golds": [
+        "Paris, France"
+      ],
+      "em": 0.0,
+      "f1": 1.0
+    },
+    {
+      "prediction": "New York City",
+      "golds": [
+        "New York",
+        "NYC"
+      ],
+      "em": 0.0,
+      "f1": 0.8
+    },
+    {
+      "prediction": "NYC",
+      "golds": [
+        "New York",
+        "NYC"
+      ],
+      "em": 1.0,
+      "f1": 1.0
+    },
+    {
+      "prediction": "1961",
+      "golds": [
+        "1961"
+      ],
+      "em": 1.0,
+      "f1": 1.0
+    },
+    {
+      "prediction": "in 1961",
+      "golds": [
+        "1961",
+        "nineteen sixty-one"
+      ],
+      "em": 0.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "prediction": "a-b",
+      "golds": [
+        "ab"
+      ],
+      "em": 1.0,
+      "f1": 1.0
+    },
+    {
+      "prediction": "a b",
+      "golds": [
+        "ab"
+      ],
+      "em": 0.0,
+      "f1": 0.0
+    },
+    {
+      "prediction": "Rashād",
+      "golds": [
+        "Rashad"
+      ],
+      "em": 0.0,
+      "f1": 0.0
+    },
+    {
+      "prediction": "U.S.",
+      "golds": [
+        "US"
+      ],
+      "em": 1.0,
+      "f1": 1.0
+    },
+    {
+      "prediction": "U.S. Army",
+      "golds": [
+        "United States Army",
+        "US Army"
+      ],
+      "em": 1.0,
+      "f1": 1.0
+    },
+    {
+      "prediction": "the the the",
+      "golds": [
+        "the"
+      ],
+      "em": 1.0,
+      "f1": 1.0
+    },
+    {
+      "prediction": "cat cat dog",
+      "golds": [
+        "cat dog dog"
+      ],
+      "em": 0.0,
+      "f1": 0.6666666666666666
+    },
+    {
+      "prediction": "Saint-Étienne",
+      "golds": [
+        "Saint Étienne"
+      ],
+      "em": 0.0,
+      "f1": 0.0
+    },
+    {
+      "prediction": "  spaced   out  ",
+      "golds": [
+        "spaced out"
+      ],
+      "em": 1.0,
+      "f1": 1.0
+    },
+    {
+      "prediction": "Who knows?",
+      "golds": [
+        "who knows"
+      ],
+      "em": 1.0,
+      "f1": 1.0
+    },
+    {
+      "prediction": "an apple a day",
+      "golds": [
+        "apple day"
+      ],
+      "em": 1.0,
+      "f1": 1.0
+    }
+  ]
+}
