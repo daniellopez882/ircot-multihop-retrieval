@@ -326,6 +326,9 @@ def score_question(
 ) -> dict[str, object]:
     gold = ws.corpus.gold[q.qid]
     answer, margin = best_answer(cache, q.text, result.ranking[: cfg.answer_depth])
+    # The reasoner and the answer step share one reader cache per question, so a passage the
+    # reasoner already read costs nothing to answer from; count each passage once.
+    read = {d for h in result.hops for d in h.read} | set(result.ranking[: cfg.answer_depth])
     return {
         "qid": q.qid,
         "hops": q.hops,
@@ -345,7 +348,7 @@ def score_question(
         "f1": best_f1(answer, q.answers),
         "steps": len(result.hops),
         "retrieval_calls": result.retrieval_calls,
-        "reader_passages": result.passages_read + min(cfg.answer_depth, len(result.ranking)),
+        "reader_passages": len(read),
         "stop_reason": result.stop_reason,
     }
 

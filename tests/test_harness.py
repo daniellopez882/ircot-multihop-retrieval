@@ -125,3 +125,20 @@ def test_learned_stop_needs_a_controller(eval_ws, offline_models, offline_config
 def test_unknown_profile_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="profile"):
         run_benchmark(BenchConfig(profile="gpu"), "x", tmp_path / "r.json", None, lambda _: None)
+
+
+def test_reader_passages_count_each_passage_once(offline_run) -> None:  # type: ignore[no-untyped-def]
+    payload, _, runs = offline_run
+    results = payload["datasets"]["synthetic"]["results"]
+    cfg = BenchConfig(**{k: v for k, v in payload["config"].items() if k != "datasets"})
+    # One shot reads only the answer step's passages; the title-feedback loop reads nothing else.
+    assert results["oneshot-hybrid"]["cost"]["reader_passages_mean"] == cfg.answer_depth
+    assert results["loop2-title-feedback"]["cost"]["reader_passages_mean"] == cfg.answer_depth
+    (run_dir,) = list(runs.iterdir())
+    for line in (run_dir / "synthetic" / "loop2-extractive.jsonl").read_text("utf-8").splitlines():
+        record = json.loads(line)
+        read = {d for h in record["hops"] for d in h["read"]}
+        assert read <= set(record["ranking"])
+        assert len(read) <= cfg.read_per_hop
+    # Two steps read three hop-one passages, which the round-robin top five already contains.
+    assert results["loop2-extractive"]["cost"]["reader_passages_mean"] == cfg.answer_depth

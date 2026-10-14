@@ -39,10 +39,14 @@ class Thought:
     bridge: Bridge | None
     answer: str
     answer_margin: float
-    passages_read: int
+    read: tuple[int, ...] = ()
     llm_tokens: int = 0
     says_done: bool = False
     note: str = ""
+
+    @property
+    def passages_read(self) -> int:
+        return len(self.read)
 
 
 class Reasoner(Protocol):
@@ -152,7 +156,7 @@ class ExtractiveReasoner:
         if bridge is not None:
             self._used.add(title_key(bridge.entity))
             query = self.policy.formulate(q.text, bridge)
-        return Thought(query, bridge, self._best[0], self._best[1], len(docs))
+        return Thought(query, bridge, self._best[0], self._best[1], tuple(docs))
 
 
 @dataclass
@@ -173,8 +177,8 @@ class TitleFeedbackReasoner:
             if title_key(title) not in self._used:
                 self._used.add(title_key(title))
                 bridge = Bridge(title, title, doc, title, self.corpus.texts[doc], 0.0, True)
-                return Thought(f"{self._question.text} {title}", bridge, "", NO_MARGIN, 0)
-        return Thought(None, None, "", NO_MARGIN, 0)
+                return Thought(f"{self._question.text} {title}", bridge, "", NO_MARGIN)
+        return Thought(None, None, "", NO_MARGIN)
 
 
 @dataclass
@@ -194,10 +198,10 @@ class OracleBridgeReasoner:
         assert self._question is not None, "start() must be called before step()"
         steps = self._question.decomposition
         if hop >= len(steps):
-            return Thought(None, None, "", NO_MARGIN, 0)
+            return Thought(None, None, "", NO_MARGIN)
         entity = steps[hop - 1].answer
         bridge = Bridge(entity, entity, -1, entity, "", 0.0, False)
-        return Thought(self.policy.formulate(self._question.text, bridge), bridge, "", NO_MARGIN, 0)
+        return Thought(self.policy.formulate(self._question.text, bridge), bridge, "", NO_MARGIN)
 
 
 _ANSWER = re.compile(r"answer is[:\s]+(.+?)\s*\.?\s*$", re.IGNORECASE | re.DOTALL)
@@ -248,10 +252,10 @@ class ChainOfThoughtReasoner:
         if not sentence or normalize_answer(sentence) in {
             normalize_answer(t) for t in self._thoughts
         }:
-            return Thought(None, None, "", NO_MARGIN, 0, completion.total_tokens, note=sentence)
+            return Thought(None, None, "", NO_MARGIN, (), completion.total_tokens, note=sentence)
         self._thoughts.append(sentence)
         found = _ANSWER.search(sentence)
         if found:
             answer = found.group(1).strip().rstrip(".")
-            return Thought(None, None, answer, 0.0, 0, completion.total_tokens, True, sentence)
-        return Thought(sentence, None, "", NO_MARGIN, 0, completion.total_tokens, note=sentence)
+            return Thought(None, None, answer, 0.0, (), completion.total_tokens, True, sentence)
+        return Thought(sentence, None, "", NO_MARGIN, (), completion.total_tokens, note=sentence)

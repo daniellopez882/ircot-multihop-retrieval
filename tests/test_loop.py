@@ -56,7 +56,11 @@ def test_one_shot_is_a_single_retrieve_state() -> None:
 
 
 def test_fixed_three_steps_follow_the_script_and_skip_the_last_reason() -> None:
-    script = [thought("hop two", read=2), thought("hop three", read=2), thought("never used")]
+    script = [
+        thought("hop two", read=(0, 1)),
+        thought("hop three", read=(6, 7)),
+        thought("never used"),
+    ]
     loop, retriever, reasoner = make(Budget(max_steps=3, k=2), script, NeverStop())
     res = loop.run(Q)
     assert res.states == ["retrieve", "reason", "decide"] * 2 + ["retrieve"]

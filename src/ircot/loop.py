@@ -79,7 +79,7 @@ class HopRecord:
     admitted: list[int]
     duplicates: list[int]
     over_budget: list[int]
-    passages_read: int = 0
+    read: list[int] = field(default_factory=list)
     bridge: str | None = None
     bridge_title_match: bool = False
     answer: str = ""
@@ -203,7 +203,7 @@ class InterleavedLoop:
                 passages_read += thought.passages_read
                 reasoner_tokens += thought.llm_tokens
                 rec = hops[-1]
-                rec.passages_read = thought.passages_read
+                rec.read = list(thought.read)
                 rec.bridge = thought.bridge.entity if thought.bridge else None
                 rec.bridge_title_match = bool(thought.bridge and thought.bridge.title_match)
                 rec.answer = thought.answer

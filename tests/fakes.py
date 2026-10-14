@@ -29,7 +29,7 @@ class ScriptedReasoner:
         self.seen.append(list(new_docs))
         if hop - 1 < len(self.script):
             return self.script[hop - 1]
-        return Thought(None, None, "", NO_MARGIN, 0)
+        return Thought(None, None, "", NO_MARGIN)
 
 
 def thought(
@@ -37,7 +37,7 @@ def thought(
     *,
     answer: str = "",
     margin: float = 0.0,
-    read: int = 0,
+    read: tuple[int, ...] = (),
     tokens: int = 0,
     done: bool = False,
 ) -> Thought:
