@@ -1,0 +1,64 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# Nothing here downloads MuSiQue, HotpotQA or a model. The default pytest selection skips the
+# `integration` marker, and both the CLI and the container run the offline profile on the
+# 30-question synthetic fixture with the hashing encoder and lexical reader.
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.5"
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install the locked environment
+        run: uv sync --frozen
+      - name: ruff check
+        run: uv run ruff check .
+      - name: ruff format --check
+        run: uv run ruff format --check .
+      - name: pytest (fixtures and fakes only)
+        run: uv run pytest
+      - name: Offline benchmark writes a results file
+        env:
+          IRCOT_DATA_DIR: ${{ runner.temp }}/ircot
+        run: |
+          uv run ircot bench --profile offline --n 30 --train-n 30 --latency-n 5 \
+            --out "$RUNNER_TEMP/offline.json"
+          uv run ircot report "$RUNNER_TEMP/offline.json"
+
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: checks
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker build
+        run: docker build --tag ircot:ci .
+      - name: The image runs as uid 10001
+        run: test "$(docker run --rm --entrypoint id ircot:ci -u)" = "10001"
+      - name: No compiler in the runtime image
+        run: |
+          for tool in gcc cc g++ make; do
+            if docker run --rm --entrypoint sh ircot:ci -c "command -v $tool"; then
+              echo "found $tool in the runtime image"; exit 1
+            fi
+          done
+      - name: Smoke run (default command is the offline demo)
+        run: docker run --rm ircot:ci | tee demo.txt && grep -q "demo ok" demo.txt
+      - name: Offline benchmark inside the container
+        run: |
+          docker run --rm ircot:ci bench --profile offline --n 30 --train-n 30 --latency-n 3 \
+            --out /data/offline.json | tee bench.txt
+          grep -q "results   /data/offline.json" bench.txt

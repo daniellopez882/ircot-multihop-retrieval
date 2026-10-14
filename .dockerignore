@@ -1,0 +1,21 @@
+# The image needs pyproject.toml, uv.lock, README.md, LICENSE and src/ only.
+.git
+.github
+.venv
+.ruff_cache
+.pytest_cache
+.hypothesis
+**/__pycache__
+**/*.py[cod]
+bench
+docs
+tests
+data
+models
+runs
+*.onnx
+*.npy
+*.parquet
+*.jsonl
+Dockerfile
+.dockerignore
