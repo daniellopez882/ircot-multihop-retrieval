@@ -1,5 +1,7 @@
 # ircot-multihop-retrieval
 
+[![ci](https://github.com/daniellopez882/ircot-multihop-retrieval/actions/workflows/ci.yml/badge.svg)](https://github.com/daniellopez882/ircot-multihop-retrieval/actions/workflows/ci.yml) ![python](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white) ![licence](https://img.shields.io/badge/licence-MIT-green)
+
 A CPU-only reproduction of the retrieval side of IRCoT (Trivedi et al., *Interleaving Retrieval
 with Chain-of-Thought Reasoning for Knowledge-Intensive Multi-Step Questions*, ACL 2023) on
 MuSiQue and HotpotQA. The loop retrieves, reads, picks a bridge entity, re-queries, and a learned
