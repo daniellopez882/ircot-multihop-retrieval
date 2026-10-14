@@ -53,12 +53,21 @@ def test_constant_features_do_not_break_standardisation() -> None:
     assert np.isfinite(model.probability(X[0]))
 
 
-def test_single_class_and_wrong_shapes_are_rejected() -> None:
+def test_single_class_falls_back_to_the_smoothed_base_rate() -> None:
+    X, y = synthetic_rows(n=10)
+    always = StopController.fit(X, np.ones_like(y))
+    assert always.coef == [0.0] * len(FEATURES)
+    assert always.probability(X[0]) == pytest.approx(10.5 / 11)
+    never = StopController.fit(X, np.zeros_like(y))
+    assert never.probability(X[0]) == pytest.approx(0.5 / 11)
+
+
+def test_wrong_shapes_and_empty_data_are_rejected() -> None:
     X, y = synthetic_rows()
-    with pytest.raises(ValueError, match="both stop and continue"):
-        StopController.fit(X, np.ones_like(y))
     with pytest.raises(ValueError, match="features"):
         StopController.fit(X[:, :3], y)
+    with pytest.raises(ValueError, match="empty"):
+        StopController.fit(X[:0], y[:0])
     payload = StopController.fit(X, y).to_json()
     payload["features"] = ["hop"]
     with pytest.raises(ValueError, match="different feature set"):

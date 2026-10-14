@@ -4,10 +4,11 @@ For each dataset the harness
 
 1. draws two disjoint fixed-seed samples (evaluation, stop-controller training) and builds a
    union-of-paragraphs corpus for each,
-2. on the training sample only: runs the extractive loop with each query policy, keeps the policy
-   with the best pool recall, and fits the stop controller on that policy's per-hop traces,
+2. on the training sample only: picks the hybrid retriever's dense weight, runs the extractive
+   loop with each query policy, keeps the policy with the best pool recall, and fits the stop
+   controller on that policy's per-hop traces,
 3. runs every configuration over the evaluation sample with one shared reader cache,
-4. times a subset again with a cold reader cache per question for honest latency,
+4. times a subset again with cold caches per question, so latency includes every model call,
 5. adds bootstrap CIs and paired permutation tests against one-shot hybrid retrieval.
 """
 

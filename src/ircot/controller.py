@@ -77,12 +77,19 @@ class StopController:
     ) -> StopController:
         if X.ndim != 2 or X.shape[1] != len(FEATURES):
             raise ValueError(f"expected [rows, {len(FEATURES)}] features, got {X.shape}")
-        if len(np.unique(y)) < 2:
-            raise ValueError("stop-controller training data needs both stop and continue labels")
+        if X.shape[0] == 0:
+            raise ValueError("stop-controller training data is empty")
         mean = X.mean(axis=0)
         scale = X.std(axis=0)
         scale[scale == 0] = 1.0
-        coef, intercept, iterations = fit_logistic((X - mean) / scale, y.astype(np.float64), l2)
+        if len(np.unique(y)) < 2:
+            # One label only (tiny samples): the unpenalised intercept would diverge, so fall back
+            # to the add-one-half smoothed base rate and ignore the features.
+            positive = float(y.sum())
+            intercept = float(np.log((positive + 0.5) / (len(y) - positive + 0.5)))
+            coef, iterations = np.zeros(len(FEATURES)), 0
+        else:
+            coef, intercept, iterations = fit_logistic((X - mean) / scale, y.astype(np.float64), l2)
         return cls(
             features=FEATURES,
             mean=mean.tolist(),
