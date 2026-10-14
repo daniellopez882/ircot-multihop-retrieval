@@ -80,10 +80,10 @@ def bench(
     n: Annotated[int, typer.Option(help="evaluation questions per dataset")] = 1000,
     train_n: Annotated[
         int, typer.Option(help="training questions per dataset (policy + stop controller)")
-    ] = 300,
+    ] = 200,
     latency_n: Annotated[
         int, typer.Option(help="questions re-timed with a cold reader cache")
-    ] = 50,
+    ] = 30,
     seed: Annotated[int, typer.Option(help="sampling seed")] = 2026,
     traces: Annotated[
         bool, typer.Option(help="write per-question JSONL traces under the data dir")

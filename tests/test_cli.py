@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import inspect
 import json
 from pathlib import Path
 
 from typer.testing import CliRunner
 
-from ircot.cli import app
+from ircot.cli import app, bench
+from ircot.harness import BenchConfig
 
 runner = CliRunner()
 
@@ -42,3 +44,13 @@ def test_offline_bench_and_report(tmp_path: Path, monkeypatch) -> None:  # type:
 def test_fetch_rejects_unknown_targets() -> None:
     result = runner.invoke(app, ["fetch", "--only", "everything"])
     assert result.exit_code != 0
+
+
+def test_bench_defaults_match_the_benchmark_config() -> None:
+    # The CLI is how the published numbers are produced, so its defaults are the documented ones.
+    params = inspect.signature(bench).parameters
+    cfg = BenchConfig()
+    assert params["n"].default == cfg.n_eval
+    assert params["train_n"].default == cfg.n_train
+    assert params["latency_n"].default == cfg.latency_n
+    assert params["seed"].default == cfg.seed
